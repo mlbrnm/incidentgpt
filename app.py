@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, jsonify
 from datetime import datetime
 import sqlite3
+import re
 
 
 
@@ -51,7 +52,7 @@ app = Flask(__name__)
 
 # Placeholder function for the RAG lookup
 def handle_new_incident(subject, sender, body):
-    return f"Processed incident: {subject} from {sender}"
+    return f"This is a placeholder, in the future this will be the result of the PrivateGPT RAG looking for past incidents similar to the new issue.\nProcessed incident: {subject} from {sender}"
 
 
 
@@ -72,13 +73,19 @@ def receive_email():
     """
     # Check if POST request contains JSON data
     data = request.get_json()
+    print(request)
+    print(f"Received data: {data}")
     if not data:
         return jsonify({"error": "Invalid data"}), 400
     
     # Extract data from POST request
     subject = data.get("subject")
+    subject = re.search(r"INC\d+", subject).group()
     sender = data.get("sender")
     body = data.get("body")
+    print(body)
+    body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
+    print(body)
     
     # Process incident
     result = handle_new_incident(subject, sender, body)
