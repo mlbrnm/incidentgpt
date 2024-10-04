@@ -15,19 +15,20 @@ def init_db():
                   subject TEXT,
                   sender TEXT,
                   body TEXT,
-                  result TEXT)''')
+                  result TEXT,
+                  snurl TEXT)''')
     conn.commit()
     conn.close()
 
 
 
 # Add incident to SQLite database
-def add_incident(subject, sender, body, result):
+def add_incident(subject, sender, body, result, snurl):
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('''INSERT INTO incidents (timestamp, subject, sender, body, result)
-                 VALUES (?, ?, ?, ?, ?)''', 
-                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), subject, sender, body, result))
+    c.execute('''INSERT INTO incidents (timestamp, subject, sender, body, result, snurl)
+                 VALUES (?, ?, ?, ?, ?, ?)''', 
+                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), subject, sender, body, result, snurl))
     conn.commit()
     conn.close()
 
@@ -37,7 +38,7 @@ def add_incident(subject, sender, body, result):
 def get_incidents():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('SELECT timestamp, subject, body, result FROM incidents ORDER BY timestamp DESC')
+    c.execute('SELECT timestamp, subject, body, result, snurl FROM incidents ORDER BY timestamp DESC')
     incidents = c.fetchall()
     conn.close()
     #print(incidents)
@@ -51,7 +52,7 @@ app = Flask(__name__)
 
 
 # Placeholder function for the RAG lookup
-def handle_new_incident(subject, sender, body):
+def handle_new_incident(subject, sender, body, snurl):
     return f"This is a placeholder, in the future this will be the result of the PrivateGPT RAG looking for past incidents similar to the new issue.\nProcessed incident: {subject} from {sender}"
 
 
@@ -83,15 +84,17 @@ def receive_email():
     subject = re.search(r"INC\d+", subject).group()
     sender = data.get("sender")
     body = data.get("body")
-    print(body)
     body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
-    print(body)
+    
+    url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
+    urls = re.findall(url_pattern, data.get("body"))
+    snurl = urls[0] if urls else None
     
     # Process incident
-    result = handle_new_incident(subject, sender, body)
+    result = handle_new_incident(subject, sender, body, snurl)
     
     # Add to SQLite DB
-    add_incident(subject, sender, body, result)
+    add_incident(subject, sender, body, result, snurl)
     
     # Return success message
     return jsonify({"message": "Incident received"}), 200

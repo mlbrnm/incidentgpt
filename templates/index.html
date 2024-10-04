@@ -34,7 +34,7 @@
         {% for incident in incidents %}
         <div class="card mb-4">
             <div class="card-header">
-                <strong>{{ incident[0] }}</strong> - <strong>Incident:</strong> {{ incident[1] }}
+                <strong>{{ incident[0] }}</strong> - <strong>Incident:</strong> <a href="{{ incident[4] }}">{{ incident[1] }}</a>
             </div>
             <div class="card-body">
                 <p><strong>Issue:</strong> <pre>{{ incident[2] }}</pre></p>
