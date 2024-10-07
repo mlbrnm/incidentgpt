@@ -3,10 +3,8 @@ from datetime import datetime
 import sqlite3
 import re
 import requests
+import difflib
 
-
-
-# Create SQLite database and table for incidents
 def init_db():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
@@ -23,7 +21,6 @@ def init_db():
 
 
 
-# Add incident to SQLite database
 def add_incident(subject, sender, body, result, snurl):
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
@@ -35,19 +32,18 @@ def add_incident(subject, sender, body, result, snurl):
 
 
 
-# Retrieve all incidents from SQLite database
+
 def get_incidents():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
     c.execute('SELECT timestamp, subject, body, result, snurl FROM incidents ORDER BY timestamp DESC')
     incidents = c.fetchall()
     conn.close()
-    #print(incidents)
     return incidents
 
 
 
-# Initialize Flask app
+
 app = Flask(__name__)
     
 
@@ -79,39 +75,23 @@ def handle_new_incident(subject, sender, body, snurl):
     return finaltext
 
 def combine_text_blocks(main_text, previous_texts, next_texts):
-    # Combine the previous texts (ascending order) + main text + next texts (ascending order)
     previous_texts_reversed = previous_texts[::-1]
     combined_text = (
-        "".join(previous_texts_reversed) + main_text +  # Add the main text in the middle
-        "".join(next_texts)  # Append the next texts in ascending order
+        "".join(previous_texts_reversed) + main_text +
+        "".join(next_texts)
     )
     
-    return combined_text.strip()  # Strip to remove any leading/trailing whitespace/newlines
+    return combined_text.strip()
 
-def find_text_between_separators(big_string, substring):
-    separator = "--------------------------------------------------------------"
-    sections = big_string.split(separator)
-    for section in sections:
-        if substring in section:
-            return section.strip()
-    return "Not found."
-
-
-import difflib
 
 def find_most_similar_section(big_string, substring, separator="--------------------------------------------------------------"):
     sections = big_string.split(separator)
     max_similarity = 0
     best_section = None
-
-    # Normalize the substring
     normalized_substring = ' '.join(substring.lower().split())
     
     for section in sections:
-        # Normalize the section
         normalized_section = ' '.join(section.lower().split())
-        
-        # Calculate similarity
         similarity = difflib.SequenceMatcher(None, normalized_substring, normalized_section).ratio()
         
         if similarity > max_similarity:
@@ -142,14 +122,12 @@ def receive_email():
     """
     Endpoint to receive POST requests from the Outlook VBA script.
     """
-    # Check if POST request contains JSON data
     data = request.get_json()
     print(request)
     print(f"Received data: {data}")
     if not data:
         return jsonify({"error": "Invalid data"}), 400
     
-    # Extract data from POST request
     subject = data.get("subject")
     subject = re.search(r"INC\d+", subject).group()
     sender = data.get("sender")
@@ -163,13 +141,10 @@ def receive_email():
     urls = re.findall(url_pattern, data.get("body"))
     snurl = urls[0] if urls else None
     
-    # Process incident
     result = handle_new_incident(subject, sender, combinedbody, snurl)
     
-    # Add to SQLite DB
     add_incident(subject, sender, combinedbody, result, snurl)
     
-    # Return success message
     return jsonify({"message": "Incident received"}), 200
 
 
