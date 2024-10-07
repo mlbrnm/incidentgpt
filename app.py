@@ -83,18 +83,21 @@ def receive_email():
     subject = data.get("subject")
     subject = re.search(r"INC\d+", subject).group()
     sender = data.get("sender")
+    shortdesc = data.get("body")
+    shortdesc = re.search(r"Short description:(.*?)(?=Description:)", body, re.DOTALL).group(1).strip()
     body = data.get("body")
     body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
+    combinedbody = f"{shortdesc}\n{body}"
     
     url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
     urls = re.findall(url_pattern, data.get("body"))
     snurl = urls[0] if urls else None
     
     # Process incident
-    result = handle_new_incident(subject, sender, body, snurl)
+    result = handle_new_incident(subject, sender, combinedbody, snurl)
     
     # Add to SQLite DB
-    add_incident(subject, sender, body, result, snurl)
+    add_incident(subject, sender, combinedbody, result, snurl)
     
     # Return success message
     return jsonify({"message": "Incident received"}), 200
