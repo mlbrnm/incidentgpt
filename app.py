@@ -5,6 +5,7 @@ import re
 import requests
 import difflib
 
+# Initialize SQLite DB
 def init_db():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
@@ -20,7 +21,7 @@ def init_db():
     conn.close()
 
 
-
+# Add incident to SQLite DB
 def add_incident(subject, sender, body, result, snurl):
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
@@ -32,7 +33,7 @@ def add_incident(subject, sender, body, result, snurl):
 
 
 
-
+# Get all incidents from SQLite DB - used for the web UI
 def get_incidents():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
@@ -43,39 +44,49 @@ def get_incidents():
 
 
 
-
+# Initialize Flask app
 app = Flask(__name__)
     
 
 
-
+# The main function for pulling in the relevant text chunks from the PrivateGPT RAG database
 def handle_new_incident(subject, sender, body, snurl):
+    # This is the PrivateGPT server.
     url = "http://wsvraloan1008:8001/v1/chunks"
     headers = {
         "Content-Type": "application/json"
     }
+    # Could be finetuned, 20 is usually excessive but it doesn't hurt to have more
     data = {
         "text":f"{body}",
         "limit":5,
         "prev_next_chunks":20
     }
-    print(data)
     response = requests.post(url, json=data, headers=headers)
     print(f"Received chunk request. Status: {response.status_code}")
     returndata = response.json()
-    list_of_relevant_texts = []
+    # Just initializing the final text
     finaltext = ""
+    # This iterates through each relevant text chunk pulled in by the PrivateGPT API
     for idx, item in enumerate(returndata["data"]):
+        # The main chunk with the relevant text
         text = item.get("text")
+        # The previous and next text chunks
         previous_texts = item.get("previous_texts", [])
         next_texts = item.get("next_texts", [])
+        # Just combining them all into one string since they come separately
         finalchunk = combine_text_blocks(text,previous_texts,next_texts)
+        # After they've been combined, there will be irrelevant sections that need to be cut off the beginning/end
         theincident = find_most_similar_section(finalchunk, text)
+        # Adding a header / spacing to each section
         finaltext = finaltext + f"---- {idx+1} ----\n" + theincident + "\n\n\n"
+    # Replacing newlines with HTML line breaks for the web UI
     finaltext = finaltext.replace("\n","<br>")
     return finaltext
 
+# Helper functions for the text chunks - combines the main text with the preceding and following text blocks
 def combine_text_blocks(main_text, previous_texts, next_texts):
+    # Reversing the previous texts so that they are in the correct order
     previous_texts_reversed = previous_texts[::-1]
     combined_text = (
         "".join(previous_texts_reversed) + main_text +
@@ -84,13 +95,18 @@ def combine_text_blocks(main_text, previous_texts, next_texts):
     
     return combined_text.strip()
 
-
+# After combining the main text chunk with the preceding and following text blocks, this function finds the part of the text we're looking for and cuts off the irrelevant stuff from the beginning and end
+# It seems silly to use a fuzzy search for this, but it works well and the extra processing time is imperceptible compared to the time it takes to pull in the text chunks from the PrivateGPT server
+# I was trying to do it with more conventional methods but there were always edge cases where it didn't work
 def find_most_similar_section(big_string, substring, separator="--------------------------------------------------------------"):
+    # Splits the text into sections based on the separator
     sections = big_string.split(separator)
+    # Initializing the maximum similarity and the best section
     max_similarity = 0
     best_section = None
+    # Normalizing the substring
     normalized_substring = ' '.join(substring.lower().split())
-    
+    # Iterating through the sections and finding the one with the highest similarity
     for section in sections:
         normalized_section = ' '.join(section.lower().split())
         similarity = difflib.SequenceMatcher(None, normalized_substring, normalized_section).ratio()
@@ -113,7 +129,9 @@ def index():
     """
     Renders the main page with a list of incidents from SQLite.
     """
+    # Get all incidents from SQLite DB
     incidents = get_incidents()
+    # Render the web UI
     return render_template('index.html', incidents=incidents)
 
 
@@ -129,9 +147,14 @@ def receive_email():
     if not data:
         return jsonify({"error": "Invalid data"}), 400
     
+    # This part is the incident number INC______
     subject = data.get("subject")
     subject = re.search(r"INC\d+", subject).group()
+
+    # This part is the email address of the sender, it's not actually used for anything
     sender = data.get("sender")
+
+    # This part is the "problem/issue" extracted from the email
     shortdesc = data.get("body")
     shortdesc = re.search(r"Short description:(.*?)(?=Description:)", shortdesc, re.DOTALL).group(1).strip()
     body = data.get("body")
@@ -139,19 +162,23 @@ def receive_email():
     combinedbody = f"{shortdesc}\n{body}"
     combinedbody = combinedbody.replace("\n","<br>")
 
-    
+    # This part is the URL to the ServiceNow incident
     url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
     urls = re.findall(url_pattern, data.get("body"))
     snurl = urls[0] if urls else None
     
+    # This is the main function that pulls in the relevant text chunks from the PrivateGPT RAG database to find a likely solution
+    # The first line does the main processing, the second line just adds some HTML formatting to the output for the web ui
     result = handle_new_incident(subject, sender, combinedbody, snurl)
     result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
     result = result.replace("---- Problem:", "<strong>Problem:</strong>")
     result = result.replace("---- Solution:", "<strong>Solution:</strong>")
     result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
     
+    # Add the incident to the SQLite DB
     add_incident(subject, sender, combinedbody, result, snurl)
     
+    # Return a success message
     return jsonify({"message": "Incident received"}), 200
 
 
