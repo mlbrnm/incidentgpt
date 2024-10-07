@@ -71,7 +71,8 @@ def handle_new_incident(subject, sender, body, snurl):
         next_texts = item.get("next_texts", [])
         finalchunk = combine_text_blocks(text,previous_texts,next_texts)
         theincident = find_most_similar_section(finalchunk, text)
-        finaltext = finaltext + f"---- {idx+1} ----\n" + theincident + "\n\n"
+        finaltext = finaltext + f"---- {idx+1} ----\n" + theincident + "\n\n\n"
+    finaltext = finaltext.replace("\n","<br>")
     return finaltext
 
 def combine_text_blocks(main_text, previous_texts, next_texts):
@@ -136,12 +137,18 @@ def receive_email():
     body = data.get("body")
     body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
     combinedbody = f"{shortdesc}\n{body}"
+    combinedbody = combinedbody.replace("\n","<br>")
+
     
     url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
     urls = re.findall(url_pattern, data.get("body"))
     snurl = urls[0] if urls else None
     
     result = handle_new_incident(subject, sender, combinedbody, snurl)
+    result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
+    result = result.replace("---- Problem:", "<strong>Problem:</strong>")
+    result = result.replace("---- Solution:", "<strong>Solution:</strong>")
+    result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
     
     add_incident(subject, sender, combinedbody, result, snurl)
     
