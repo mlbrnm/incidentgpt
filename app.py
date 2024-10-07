@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, jsonify
 from datetime import datetime
 import sqlite3
 import re
+import requests
 
 
 
@@ -51,9 +52,78 @@ app = Flask(__name__)
     
 
 
-# Placeholder function for the RAG lookup
+
 def handle_new_incident(subject, sender, body, snurl):
-    return f"This is a placeholder, in the future this will be the result of the PrivateGPT RAG looking for past incidents similar to the new issue.\nProcessed incident: {subject} from {sender}"
+    url = "http://wsvraloan1008:8001/v1/chunks"
+    headers = {
+        "Content-Type": "application/json"
+    }
+    data = {
+        "text":f"{body}",
+        "limit":5,
+        "prev_next_chunks":20
+    }
+    print(data)
+    response = requests.post(url, json=data, headers=headers)
+    print(f"Received chunk request. Status: {response.status_code}")
+    returndata = response.json()
+    list_of_relevant_texts = []
+    finaltext = ""
+    for idx, item in enumerate(returndata["data"]):
+        text = item.get("text")
+        previous_texts = item.get("previous_texts", [])
+        next_texts = item.get("next_texts", [])
+        finalchunk = combine_text_blocks(text,previous_texts,next_texts)
+        theincident = find_most_similar_section(finalchunk, text)
+        finaltext = finaltext + f"---- {idx+1} ----\n" + theincident + "\n\n"
+    return finaltext
+
+def combine_text_blocks(main_text, previous_texts, next_texts):
+    # Combine the previous texts (ascending order) + main text + next texts (ascending order)
+    previous_texts_reversed = previous_texts[::-1]
+    combined_text = (
+        "".join(previous_texts_reversed) + main_text +  # Add the main text in the middle
+        "".join(next_texts)  # Append the next texts in ascending order
+    )
+    
+    return combined_text.strip()  # Strip to remove any leading/trailing whitespace/newlines
+
+def find_text_between_separators(big_string, substring):
+    separator = "--------------------------------------------------------------"
+    sections = big_string.split(separator)
+    for section in sections:
+        if substring in section:
+            return section.strip()
+    return "Not found."
+
+
+import difflib
+
+def find_most_similar_section(big_string, substring, separator="--------------------------------------------------------------"):
+    sections = big_string.split(separator)
+    max_similarity = 0
+    best_section = None
+
+    # Normalize the substring
+    normalized_substring = ' '.join(substring.lower().split())
+    
+    for section in sections:
+        # Normalize the section
+        normalized_section = ' '.join(section.lower().split())
+        
+        # Calculate similarity
+        similarity = difflib.SequenceMatcher(None, normalized_substring, normalized_section).ratio()
+        
+        if similarity > max_similarity:
+            max_similarity = similarity
+            best_section = section.strip()
+    
+    if best_section is not None:
+        return best_section
+    else:
+        return "Not found."
+
+
 
 
 
@@ -84,7 +154,7 @@ def receive_email():
     subject = re.search(r"INC\d+", subject).group()
     sender = data.get("sender")
     shortdesc = data.get("body")
-    shortdesc = re.search(r"Short description:(.*?)(?=Description:)", body, re.DOTALL).group(1).strip()
+    shortdesc = re.search(r"Short description:(.*?)(?=Description:)", shortdesc, re.DOTALL).group(1).strip()
     body = data.get("body")
     body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
     combinedbody = f"{shortdesc}\n{body}"
