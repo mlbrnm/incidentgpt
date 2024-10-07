@@ -167,8 +167,8 @@ def receive_email():
     urls = re.findall(url_pattern, data.get("body"))
     snurl = urls[0] if urls else None
     
-    # This is the main function that pulls in the relevant text chunks from the PrivateGPT RAG database to find a likely solution
-    # The first line does the main processing, the second line just adds some HTML formatting to the output for the web ui
+    # This is the main series of events to pull in the relevant text chunks from the PrivateGPT RAG database and find the likely solutions
+    # The first line does the main processing, the following lines just add some HTML formatting to the output for the web ui
     result = handle_new_incident(subject, sender, combinedbody, snurl)
     result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
     result = result.replace("---- Problem:", "<strong>Problem:</strong>")
