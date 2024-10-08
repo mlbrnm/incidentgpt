@@ -138,24 +138,10 @@ def find_most_similar_section(big_string, substring, separator="----------------
         return "Not found."
 
 
-def subjectparse(data):
-    subject = data.get("subject")
-    subject = re.search(r"INC\d+", subject).group()
-    return subject
-
 def bodyparse(data):
-    shortdesc = data.get("body")
-    shortdesc = re.search(r"Short description:(.*?)(?=Description:)", shortdesc, re.DOTALL).group(1).strip()
-    body = data.get("body")
-    body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
     combinedbody = f"{shortdesc}\n{body}"
     combinedbody = combinedbody.replace("\n","<br>")
     return combinedbody
-
-def urlparse(data):
-    url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
-    urls = re.findall(url_pattern, data.get("body"))
-    return urls[0] if urls else None
 
 def ragresultparse(result):
     result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
@@ -188,10 +174,10 @@ def receive_email():
     if not data:
         return jsonify({"error": "Invalid data"}), 400
     
-    subject = subjectparse(data)
+    subject = data.get("subject")
     sender = data.get("sender")
-    combinedbody = bodyparse(data)
-    snurl = urlparse(data)
+    combinedbody = data.get("body")
+    snurl = data.get("snurl")
     result = ragresultparse(handle_new_incident(subject, sender, combinedbody, snurl))
     add_incident(subject, sender, combinedbody, result, snurl)
     executor.submit(add_ai_solution, subject, combinedbody, result)
