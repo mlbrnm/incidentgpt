@@ -5,7 +5,7 @@ import re
 import requests
 import difflib
 import ollama
-
+from concurrent.futures import ThreadPoolExecutor
 
 # Initialize SQLite DB
 def init_db():
@@ -60,8 +60,9 @@ def get_incidents():
 
 
 
-# Initialize Flask app
+# Initialize Flask app and async thing
 app = Flask(__name__)
+executor = ThreadPoolExecutor()
     
 
 
@@ -193,7 +194,7 @@ def receive_email():
     snurl = urlparse(data)
     result = ragresultparse(handle_new_incident(subject, sender, combinedbody, snurl))
     add_incident(subject, sender, combinedbody, result, snurl)
-    add_ai_solution(subject, combinedbody, result)
+    executor.submit(add_ai_solution, subject, combinedbody, result)
     # Return a success message
     return jsonify({"message": "Incident received"}), 200
 

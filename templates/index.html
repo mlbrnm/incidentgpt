@@ -20,7 +20,7 @@
             padding: 8px;
             padding-left: 24px;
             border-radius: 5px;
-            margin-top: 4px;
+            margin-top: -4px;
         }
     </style>
     
@@ -45,9 +45,9 @@
                 <strong>{{ incident[0] }}</strong> - <strong>Incident:</strong> <a href="{{ incident[4] }}">{{ incident[1] }}</a>
             </div>
             <div class="card-body">
-                <strong style="color: #000131; font-size: 1rem;">Issue:</strong><p class="rag">{{ incident[2] | safe }}</p>
-                <strong style="color: #000131; font-size: 1rem;">AI Generated Solution:</strong><p class="rag">{{ incident[5] | safe }}</p>
-                <strong style="color: #000131; font-size: 1rem;">Relevant Previous Incidents:</strong><p class="rag">{{ incident[3] | safe }}</p>
+                <strong style="color: #000131; font-size: 1rem;">Issue:</strong><p class="text-muted" style="font-size: 12px;">The user's problem extracted from the email.</p><p class="rag">{{ incident[2] | safe }}</p>
+                <strong style="color: #000131; font-size: 1rem;">AI Generated Solution:</strong><p class="text-muted" style="font-size: 12px;">The language model's interpretation of the problem, in the context of the past incidents retrieved below.</p><p class="rag">{{ incident[5] | safe }}</p>
+                <strong style="color: #000131; font-size: 1rem;">Relevant Previous Incidents:</strong><p class="text-muted" style="font-size: 12px;">The past incidents retrieved from the vector database.</p><p class="rag">{{ incident[3] | safe }}</p>
             </div>
         </div>
         {% endfor %}
