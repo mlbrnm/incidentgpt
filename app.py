@@ -138,10 +138,6 @@ def find_most_similar_section(big_string, substring, separator="----------------
         return "Not found."
 
 
-def bodyparse(data):
-    combinedbody = f"{shortdesc}\n{body}"
-    combinedbody = combinedbody.replace("\n","<br>")
-    return combinedbody
 
 def ragresultparse(result):
     result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
