@@ -4,6 +4,8 @@ import sqlite3
 import re
 import requests
 import difflib
+import ollama
+
 
 # Initialize SQLite DB
 def init_db():
@@ -16,28 +18,42 @@ def init_db():
                   sender TEXT,
                   body TEXT,
                   result TEXT,
-                  snurl TEXT)''')
+                  snurl TEXT,
+                  aisolution TEXT)''')
     conn.commit()
     conn.close()
 
 
 # Add incident to SQLite DB
-def add_incident(subject, sender, body, result, snurl):
+def add_incident(subject, sender, body, result, snurl, aisolution="Generation in progress..."):
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('''INSERT INTO incidents (timestamp, subject, sender, body, result, snurl)
-                 VALUES (?, ?, ?, ?, ?, ?)''', 
-                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), subject, sender, body, result, snurl))
+    c.execute('''INSERT INTO incidents (timestamp, subject, sender, body, result, snurl, aisolution)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''', 
+                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), subject, sender, body, result, snurl, aisolution))
     conn.commit()
     conn.close()
 
+def add_ai_solution(subject, body, result):
+    # AI solution is generated first
+    contextprompt = f'''You are an AI working for a healthcare IT team called the Middleware Services Team (MWS). The following are solved/closed tickets that contain possible solutions to a new problem.\n----------------\n{result}\n----------------\Based on the above context, identify common themes and determine a concise potential solution to the user submitted problem below. If the context is not relevant, answer that you do not know. Output only a few sentences or less.\nQuestion:\n{body}'''
+    
+    airesponse = ollama.generate(model="gemma2:2b-instruct-q4_K_M", prompt=contextprompt)
+    aisolution = airesponse.get('response')
+
+    conn = sqlite3.connect('incidents.db')
+    c = conn.cursor()
+    c.execute(
+        '''UPDATE incidents SET aisolution = ? WHERE subject = ?''', (aisolution, subject))
+    conn.commit()
+    conn.close()
 
 
 # Get all incidents from SQLite DB - used for the web UI
 def get_incidents():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('SELECT timestamp, subject, body, result, snurl FROM incidents ORDER BY timestamp DESC')
+    c.execute('SELECT timestamp, subject, body, result, snurl, aisolution FROM incidents ORDER BY timestamp DESC')
     incidents = c.fetchall()
     conn.close()
     return incidents
@@ -121,7 +137,31 @@ def find_most_similar_section(big_string, substring, separator="----------------
         return "Not found."
 
 
+def subjectparse(data):
+    subject = data.get("subject")
+    subject = re.search(r"INC\d+", subject).group()
+    return subject
 
+def bodyparse(data):
+    shortdesc = data.get("body")
+    shortdesc = re.search(r"Short description:(.*?)(?=Description:)", shortdesc, re.DOTALL).group(1).strip()
+    body = data.get("body")
+    body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
+    combinedbody = f"{shortdesc}\n{body}"
+    combinedbody = combinedbody.replace("\n","<br>")
+    return combinedbody
+
+def urlparse(data):
+    url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
+    urls = re.findall(url_pattern, data.get("body"))
+    return urls[0] if urls else None
+
+def ragresultparse(result):
+    result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
+    result = result.replace("---- Problem:", "<strong>Problem:</strong>")
+    result = result.replace("---- Solution:", "<strong>Solution:</strong>")
+    result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
+    return result
 
 
 @app.route('/', methods=['GET'])
@@ -147,37 +187,13 @@ def receive_email():
     if not data:
         return jsonify({"error": "Invalid data"}), 400
     
-    # This part is the incident number INC______
-    subject = data.get("subject")
-    subject = re.search(r"INC\d+", subject).group()
-
-    # This part is the email address of the sender, it's not actually used for anything
+    subject = subjectparse(data)
     sender = data.get("sender")
-
-    # This part is the "problem/issue" extracted from the email
-    shortdesc = data.get("body")
-    shortdesc = re.search(r"Short description:(.*?)(?=Description:)", shortdesc, re.DOTALL).group(1).strip()
-    body = data.get("body")
-    body = re.search(r"Description:(.*?)(?=Configuration item:)", body, re.DOTALL).group(1).strip()
-    combinedbody = f"{shortdesc}\n{body}"
-    combinedbody = combinedbody.replace("\n","<br>")
-
-    # This part is the URL to the ServiceNow incident
-    url_pattern = r'Click here to view record:  INC[0-9]+\s*<([^>]+)>'
-    urls = re.findall(url_pattern, data.get("body"))
-    snurl = urls[0] if urls else None
-    
-    # This is the main series of events to pull in the relevant text chunks from the PrivateGPT RAG database and find the likely solutions
-    # The first line does the main processing, the following lines just add some HTML formatting to the output for the web ui
-    result = handle_new_incident(subject, sender, combinedbody, snurl)
-    result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
-    result = result.replace("---- Problem:", "<strong>Problem:</strong>")
-    result = result.replace("---- Solution:", "<strong>Solution:</strong>")
-    result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
-    
-    # Add the incident to the SQLite DB
+    combinedbody = bodyparse(data)
+    snurl = urlparse(data)
+    result = ragresultparse(handle_new_incident(subject, sender, combinedbody, snurl))
     add_incident(subject, sender, combinedbody, result, snurl)
-    
+    add_ai_solution(subject, combinedbody, result)
     # Return a success message
     return jsonify({"message": "Incident received"}), 200
 
