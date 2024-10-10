@@ -21,12 +21,12 @@ def load_subjects_cache():
     
     # Close the connection
     conn.close()
-    print("Subjects loaded from db into cache, theoretically.")
+    #print("Subjects loaded from db into cache, theoretically.")
 
 def check_incident(subject):
     # Check the in-memory cache first
     if subject in subjects_cache:
-        print(f"Subject {subject} was found in cache.")
+        #print(f"Subject {subject} was found in cache.")
         return True
     
     # If not found in cache, query the database
@@ -45,6 +45,39 @@ def check_incident(subject):
     print(f"Subject {subject} was not found. New incident.")
     return False
 
+
+def get_id_from_inc(subject):
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    params = {
+        'sysparm_limit': 10,
+        'sysparm_display_value': True,
+        'sysparm_fields':'sys_id, number',
+        'number':f'{subject}',
+        'sysparm_query': 'ORDERBYDESCopened_at'
+    }
+    print(f"Pulling in sys_id for {subject}...")
+    response = requests.get(credentials.endpoint, auth=HTTPBasicAuth(credentials.user, credentials.password), headers=headers, params=params)
+
+    if response.status_code == 200:
+        #print(f"SUCCESS...")
+        incidents = response.json()['result']
+        if len(incidents) == 1:
+            incident = incidents[0]
+            return incident.get('sys_id')
+        else:
+            return "na"
+        
+
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
+
+
+
+
 def pull_servicenow_incidents():
     headers = {
         "Content-Type": "application/json",
@@ -58,34 +91,36 @@ def pull_servicenow_incidents():
         'assignment_group':'Medical Devices-Medical System Middleware',
         'sysparm_query': 'ORDERBYDESCopened_at'
     }
-    print(f"Checking ServiceNow API for new incidents...")
+    #print(f"Checking ServiceNow API for new incidents...")
     response = requests.get(credentials.endpoint, auth=HTTPBasicAuth(credentials.user, credentials.password), headers=headers, params=params)
 
     if response.status_code == 200:
-        print(f"SUCCESS...")
+        #print(f"SUCCESS...")
         incidents = response.json()['result']
         reversed_incidents = incidents[::-1]
         for incident in reversed_incidents:
             subject = incident.get('number')
             if check_incident(subject) == True:
-                print(f"Moving onto next incident...")
+                #print(f"Moving onto next incident...")
                 continue
             shortdesc = incident.get('short_description')
             desc = incident.get('description')
             sys_id = incident.get('sys_id')
             sender = incident.get('u_email')
+            timestamp = incident.get('opened_at')
 
             body = f"{shortdesc}<br>{desc}"
             snurl = f"{credentials.servicenow_instance}/nav_to.do?uri=incident.do?sys_id={sys_id}"
 
-            url = "http://localhost:5000/receive-email"
+            url = "http://127.0.0.1:5001/receive-email"
 
             # Define the data to send in the POST request
             data = {
                 "subject": f"{subject}",
                 "sender": f"{sender}",
                 "body": f"{body}",
-                "snurl": f"{snurl}"
+                "snurl": f"{snurl}",
+                "timestamp": f"{timestamp}"
             }
 
             # Convert the data to JSON format
@@ -96,14 +131,22 @@ def pull_servicenow_incidents():
             # Send the POST request
             print(f"Sending {subject} to webUI...")
             response = requests.post(url, data=json.dumps(data), headers=headers)
-            print(f"Waiting 4 minutes for AI generation...")
-            time.sleep(240)
+            print(f"Waiting 3 minutes for AI generation...")
+            time.sleep(180)
     else:
         print(f"Error: {response.status_code} - {response.text}")
 
+def delete_from_cache(incident_id):
+    subjects_cache.discard(incident_id)
+    print(f"Incident with subject '{incident_id}' removed from cache.")
 
+def startup_and_loop():
+    print("Starting loop. Incidents will be retrieved every 1 minute.")
+    while True:
+        load_subjects_cache()
+        pull_servicenow_incidents()
+        #print("Snoozing it up for a minute...")
+        time.sleep(60)
 
-load_subjects_cache()
-while True:
-    pull_servicenow_incidents()
-    time.sleep(60)
+if __name__ == '__main__':
+    startup_and_loop()

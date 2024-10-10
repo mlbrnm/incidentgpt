@@ -6,6 +6,7 @@ import requests
 import difflib
 import ollama
 from concurrent.futures import ThreadPoolExecutor
+from servicenowapi import get_id_from_inc, delete_from_cache
 
 # Initialize SQLite DB
 def init_db():
@@ -25,12 +26,12 @@ def init_db():
 
 
 # Add incident to SQLite DB
-def add_incident(subject, sender, body, result, snurl, aisolution="Generation in progress..."):
+def add_incident(timestamp, subject, sender, body, result, snurl, aisolution="Generation in progress..."):
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
     c.execute('''INSERT INTO incidents (timestamp, subject, sender, body, result, snurl, aisolution)
                  VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), subject, sender, body, result, snurl, aisolution))
+                 (timestamp, subject, sender, body, result, snurl, aisolution))
     conn.commit()
     conn.close()
 
@@ -47,6 +48,7 @@ def add_ai_solution(subject, body, result):
         '''UPDATE incidents SET aisolution = ? WHERE subject = ?''', (aisolution, subject))
     conn.commit()
     conn.close()
+    print(f"Added AI solution for {subject}")
 
 
 # Get all incidents from SQLite DB - used for the web UI
@@ -138,9 +140,28 @@ def find_most_similar_section(big_string, substring, separator="----------------
         return "Not found."
 
 
+def replace_inc_with_url(text):
+    """Finds all INC numbers in the text, looks up their sys_id, and replaces them with a URL."""
+    
+    # Find all INC numbers using regex
+    inc_numbers = re.findall(r'INC\d+', text)
+    
+    # Replace each INC number with the corresponding URL
+    for inc in inc_numbers:
+        sys_id = get_id_from_inc(inc)
+        if sys_id != "na":
+            # Format the replacement URL
+            url = f'<a href="https://albertahealthservices.service-now.com/nav_to.do?uri=incident.do?sys_id={sys_id}">{inc}</a>'
+            # Replace the INC number with the formatted URL in the text
+            text = text.replace(inc, url)
+    
+    return text
+
 
 def ragresultparse(result):
     result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
+    result = replace_inc_with_url(result)
+    
     result = result.replace("---- Problem:", "<strong>Problem:</strong>")
     result = result.replace("---- Solution:", "<strong>Solution:</strong>")
     result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
@@ -174,16 +195,33 @@ def receive_email():
     sender = data.get("sender")
     combinedbody = data.get("body")
     snurl = data.get("snurl")
+    timestamp = data.get("timestamp")
     result = ragresultparse(handle_new_incident(subject, sender, combinedbody, snurl))
-    add_incident(subject, sender, combinedbody, result, snurl)
+    add_incident(timestamp, subject, sender, combinedbody, result, snurl)
     executor.submit(add_ai_solution, subject, combinedbody, result)
     # Return a success message
     return jsonify({"message": "Incident received"}), 200
 
+
+@app.route('/delete_incident/<incident_id>', methods=['DELETE'])
+def delete_incident(incident_id):
+    conn = sqlite3.connect('incidents.db')
+    c = conn.cursor()
+    c.execute('DELETE FROM incidents WHERE subject = ?', (incident_id,))
+    if c.rowcount == 0:
+        print(f"Couldn't delete {incident_id} for some reason.")
+    else:
+        print(f"Deleted {incident_id} from db.")
+        delete_from_cache(incident_id)
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True}), 200
 
 
 if __name__ == '__main__':
     # Initialize DB if not exists
     init_db()
     # Run Flask app
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, host='127.0.0.1', port=5001)
+
+
