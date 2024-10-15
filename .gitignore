@@ -167,3 +167,4 @@ cython_debug/
 #.idea/
 test.py
 credentials.py
+log.txt

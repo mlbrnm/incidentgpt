@@ -4,6 +4,15 @@ import json
 import credentials
 import sqlite3
 import time
+import datetime
+
+def log(message):
+    # Get current time and format it
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Open the log file in append mode
+    with open('log.txt', 'a') as log_file:
+        log_file.write(f"[{timestamp}] {message}\n")
 
 subjects_cache = set()
 
@@ -42,7 +51,8 @@ def check_incident(subject):
         print(f"Subject {subject} was found in db, but not cache. Adding to cache.")
         return True
     
-    print(f"Subject {subject} was not found. New incident.")
+    print(f"Subject {subject} was not found in database. New incident.")
+    log(f"Subject {subject} was not found in database. New incident.")
     return False
 
 
@@ -60,6 +70,7 @@ def get_id_from_inc(subject):
         'sysparm_query': 'ORDERBYDESCopened_at'
     }
     print(f"Pulling in sys_id for {subject}...")
+    log(f"Pulling in sys_id for {subject}...")
     response = requests.get(credentials.endpoint, auth=HTTPBasicAuth(credentials.user, credentials.password), headers=headers, params=params)
 
     if response.status_code == 200:
@@ -74,6 +85,7 @@ def get_id_from_inc(subject):
 
     else:
         print(f"Error: {response.status_code} - {response.text}")
+        log(f"Error: {response.status_code} - {response.text}")
 
 
 
@@ -130,18 +142,22 @@ def pull_servicenow_incidents():
 
             # Send the POST request
             print(f"Sending {subject} to webUI...")
+            log(f"Sending {subject} to webUI...")
             response = requests.post(url, data=json.dumps(data), headers=headers)
-            print(f"Waiting 3 minutes for AI generation...")
+            #print(f"Waiting 3 minutes for AI generation...")
             time.sleep(180)
     else:
         print(f"Error: {response.status_code} - {response.text}")
+        log(f"Error: {response.status_code} - {response.text}")
 
 def delete_from_cache(incident_id):
     subjects_cache.discard(incident_id)
     print(f"Incident with subject '{incident_id}' removed from cache.")
+    log(f"Incident with subject '{incident_id}' removed from cache.")
 
 def startup_and_loop():
     print("Starting loop. Incidents will be retrieved every 1 minute.")
+    log("Starting loop. Incidents will be retrieved every 1 minute.")
     while True:
         load_subjects_cache()
         pull_servicenow_incidents()

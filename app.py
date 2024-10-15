@@ -7,6 +7,7 @@ import difflib
 import ollama
 from concurrent.futures import ThreadPoolExecutor
 from servicenowapi import get_id_from_inc, delete_from_cache
+import datetime
 
 # Initialize SQLite DB
 def init_db():
@@ -49,6 +50,7 @@ def add_ai_solution(subject, body, result):
     conn.commit()
     conn.close()
     print(f"Added AI solution for {subject}")
+    log(f"Added AI solution for {subject}")
 
 
 # Get all incidents from SQLite DB - used for the web UI
@@ -60,6 +62,14 @@ def get_incidents():
     conn.close()
     return incidents
 
+
+def log(message):
+    # Get current time and format it
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Open the log file in append mode
+    with open('log.txt', 'a') as log_file:
+        log_file.write(f"[{timestamp}] {message}\n")
 
 
 # Initialize Flask app and async thing
@@ -83,6 +93,7 @@ def handle_new_incident(subject, sender, body, snurl):
     }
     response = requests.post(url, json=data, headers=headers)
     print(f"Received chunk request. Status: {response.status_code}")
+    log(f"Received chunk request. Status: {response.status_code}")
     returndata = response.json()
     # Just initializing the final text
     finaltext = ""
@@ -175,6 +186,7 @@ def index():
     """
     # Get all incidents from SQLite DB
     incidents = get_incidents()
+    log("Web UI loaded.")
     # Render the web UI
     return render_template('index.html', incidents=incidents)
 
@@ -183,11 +195,12 @@ def index():
 @app.route('/receive-email', methods=['POST'])
 def receive_email():
     """
-    Endpoint to receive POST requests from the Outlook VBA script.
+    Endpoint to receive POST requests for new incidents.
     """
     data = request.get_json()
     print(request)
     print(f"Received data: {data}")
+    log(f"Received data: {data}")
     if not data:
         return jsonify({"error": "Invalid data"}), 400
     
@@ -210,8 +223,10 @@ def delete_incident(incident_id):
     c.execute('DELETE FROM incidents WHERE subject = ?', (incident_id,))
     if c.rowcount == 0:
         print(f"Couldn't delete {incident_id} for some reason.")
+        log(f"Couldn't delete {incident_id} for some reason.")
     else:
         print(f"Deleted {incident_id} from db.")
+        log(f"Deleted {incident_id} from db.")
         delete_from_cache(incident_id)
     conn.commit()
     conn.close()
@@ -222,6 +237,7 @@ if __name__ == '__main__':
     # Initialize DB if not exists
     init_db()
     # Run Flask app
+    log(f"Starting app...")
     app.run(debug=True, host='127.0.0.1', port=5001)
 
 
