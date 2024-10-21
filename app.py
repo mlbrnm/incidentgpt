@@ -190,6 +190,12 @@ def index():
     # Render the web UI
     return render_template('index.html', incidents=incidents)
 
+@app.route('/zabbix')
+def zabbix():
+    zabbix_incidents = [
+        # Placeholder
+    ]
+    return render_template('zabbix.html', zabbix_incidents=zabbix_incidents)
 
 
 @app.route('/receive-email', methods=['POST'])
