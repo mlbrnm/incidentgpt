@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Zabbix - Monitoring Incident Search{% endblock %}
+{% block title %}Zabbix - Current Event Dashboard{% endblock %}
 
 {% block header %}
-Zabbix Monitoring Incidents
+Zabbix - Current Events
 {% endblock %}
 
 {% block content %}
-<h2>Recent Zabbix Incidents</h2>
+<h2>Current Zabbix Events</h2>
 <p class="text-muted">New incidents may take a minute or two to appear and require a page refresh.</p>
 {% for incident in zabbix_incidents %}
     <div class="card mb-4">
@@ -16,8 +16,8 @@ Zabbix Monitoring Incidents
         </div>
         <div class="card-body">
             <strong style="color: #000131; font-size: 1rem;">Alert Details:</strong><p class="text-muted" style="font-size: 12px;">Details of the alert triggered by Zabbix.</p><p class="rag">{{ incident[2] | safe }}</p>
-            <strong style="color: #000131; font-size: 1rem;">Generated Solution:</strong><p class="text-muted" style="font-size: 12px;">Proposed solution based on similar past alerts.</p><p class="rag">{{ incident[5] | safe }}</p>
-            <button class="btn btn-light float-right" onclick="deleteIncident('{{ incident[1] }}')">Delete (refresh)</button>
+            <strong style="color: #000131; font-size: 1rem;">Relevant Past Incidents:</strong><p class="text-muted" style="font-size: 12px;">The past incidents retrieved from the vector database.</p><p class="rag">{{ incident[3] | safe }}</p>
+            
         </div>
     </div>
 {% endfor %}

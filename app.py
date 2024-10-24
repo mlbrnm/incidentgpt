@@ -22,6 +22,13 @@ def init_db():
                   result TEXT,
                   snurl TEXT,
                   aisolution TEXT)''')
+    c.execute('''DROP TABLE zabbixevents''')
+    c.execute('''CREATE TABLE IF NOT EXISTS zabbixevents
+                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                subject TEXT,
+                issuebody TEXT,
+                relatedbody TEXT)''')
     conn.commit()
     conn.close()
 
@@ -54,7 +61,7 @@ def add_ai_solution(subject, body, result):
 
 
 # Get all incidents from SQLite DB - used for the web UI
-def get_incidents():
+def get_sn_incidents():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
     c.execute('SELECT timestamp, subject, body, result, snurl, aisolution FROM incidents ORDER BY timestamp DESC')
@@ -62,6 +69,13 @@ def get_incidents():
     conn.close()
     return incidents
 
+def get_zabbix_events():
+    conn = sqlite3.connect('incidents.db')
+    c = conn.cursor()
+    c.execute('SELECT timestamp, subject, issuebody, relatedbody FROM zabbixevents ORDER BY timestamp DESC')
+    incidents = c.fetchall()
+    conn.close()
+    return incidents
 
 def log(message):
     # Get current time and format it
@@ -79,7 +93,7 @@ executor = ThreadPoolExecutor()
 
 
 # The main function for pulling in the relevant text chunks from the PrivateGPT RAG database
-def handle_new_incident(subject, sender, body, snurl):
+def handle_new_sn_incident(subject, sender, body, snurl):
     # This is the PrivateGPT server.
     url = "http://wsvraloan1008:8001/v1/chunks"
     headers = {
@@ -169,15 +183,47 @@ def replace_inc_with_url(text):
     return text
 
 
-def ragresultparse(result):
+def ragresultparse(result, zabbix=False, colorize=False):
     result = re.sub(r'---- (\d+) ----', r'<strong style="font-size: 0.9rem; margin-left: -8px;">Result \1</strong>', result)
-    result = replace_inc_with_url(result)
-    
-    result = result.replace("---- Problem:", "<strong>Problem:</strong>")
-    result = result.replace("---- Solution:", "<strong>Solution:</strong>")
-    result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
+    if zabbix == False:
+        result = replace_inc_with_url(result)
+        result = result.replace("---- Work Notes:", "<strong>Work Notes:</strong>")
+        result = result.replace("---- Problem:", "<strong>Problem:</strong>")
+        result = result.replace("---- Solution:", "<strong>Solution:</strong>")
+
+    if zabbix == True:
+        result = result.replace("Problem:", "")
+        result = result.replace("Solution:", "<strong>Solution:</strong>")
+        if colorize == True:
+            result = color_severity(result)
+       
     return result
 
+
+def color_severity(text):
+    # Define the regex pattern to capture "Severity: <Level>"
+    pattern = r"\(Severity: ([A-Za-z\s]+)\)"
+    severity_styles = {
+    "Not classified": {"color": "gray", "background": "lightgray"},
+    "Information": {"color": "blue", "background": "lightblue"},
+    "Warning": {"color": "black", "background": "yellow"},
+    "Average": {"color": "white", "background": "orange"},
+    "High": {"color": "white", "background": "lightcoral"},  # Light red
+    "Disaster": {"color": "white", "background": "red"}
+    }
+    
+    # Function to replace severity level with styled HTML
+    def replace_severity(match):
+        severity = match.group(1)  # Extract severity level
+        style = severity_styles.get(severity, {"color": "black", "background": "white"})  # Default style
+        return (f'<br><span style="color:{style["color"]}; '
+                f'background-color:{style["background"]}; '
+                f'padding: 2px 5px; border-radius: 4px; font-weight: bold;">'
+                f'(Severity: {severity})</span><br>')
+    
+    # Use re.sub() to replace all occurrences in the text
+    colored_text = re.sub(pattern, replace_severity, text)
+    return colored_text
 
 @app.route('/', methods=['GET'])
 def index():
@@ -185,16 +231,18 @@ def index():
     Renders the main page with a list of incidents from SQLite.
     """
     # Get all incidents from SQLite DB
-    incidents = get_incidents()
+    incidents = get_sn_incidents()
     log("Web UI loaded.")
     # Render the web UI
     return render_template('index.html', incidents=incidents)
 
 @app.route('/zabbix')
 def zabbix():
-    zabbix_incidents = [
-        # Placeholder
-    ]
+    '''
+    Renders the Zabbix page with a list of incidents from SQLite.
+    '''
+    zabbix_incidents = get_zabbix_events()
+    log("Zabbix UI loaded.")
     return render_template('zabbix.html', zabbix_incidents=zabbix_incidents)
 
 
@@ -215,7 +263,7 @@ def receive_email():
     combinedbody = data.get("body")
     snurl = data.get("snurl")
     timestamp = data.get("timestamp")
-    result = ragresultparse(handle_new_incident(subject, sender, combinedbody, snurl))
+    result = ragresultparse(handle_new_sn_incident(subject, sender, combinedbody, snurl))
     add_incident(timestamp, subject, sender, combinedbody, result, snurl)
     executor.submit(add_ai_solution, subject, combinedbody, result)
     # Return a success message
