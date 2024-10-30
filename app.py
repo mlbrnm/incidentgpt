@@ -43,12 +43,19 @@ def add_incident(timestamp, subject, sender, body, result, snurl, aisolution="Ge
     conn.commit()
     conn.close()
 
+
 def add_ai_solution(subject, body, result):
-    # AI solution is generated first
     contextprompt = f'''You are an AI working for a healthcare IT team called the Middleware Services Team (MWS). The following are solved/closed tickets that contain possible solutions to a new problem.\n----------------\n{result}\n----------------\Based on the above context, determine a concise potential solution to the user submitted problem below. If the context is not relevant, answer that you do not know. Output only a few sentences or less, with no preamble.\nQuestion:\n{body}'''
     
-    airesponse = ollama.generate(model="llama3.2:3b-instruct-q4_K_M", prompt=contextprompt)
-    aisolution = airesponse.get('response')
+    try:
+        airesponse = ollama.generate(model="llama3.2:3b-instruct-q4_K_M", prompt=contextprompt)
+        aisolution = airesponse.get('response')
+        print(f"Added AI solution for {subject}")
+        log(f"Added AI solution for {subject}")
+    except Exception as e:
+        aisolution = f"Failed to generate AI solution: {str(e)}"
+        print(f"Failed to add AI solution for {subject}")
+        log(f"Failed to add AI solution for {subject}")
 
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
@@ -56,8 +63,7 @@ def add_ai_solution(subject, body, result):
         '''UPDATE incidents SET aisolution = ? WHERE subject = ?''', (aisolution, subject))
     conn.commit()
     conn.close()
-    print(f"Added AI solution for {subject}")
-    log(f"Added AI solution for {subject}")
+    
 
 
 # Get all incidents from SQLite DB - used for the web UI
