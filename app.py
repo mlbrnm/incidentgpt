@@ -46,7 +46,6 @@ def add_incident(timestamp, subject, sender, body, result, snurl, aisolution="Ge
 
 def add_ai_solution(subject, body, result):
     contextprompt = f'''You are an AI working for a healthcare IT team called the Middleware Services Team (MWS). The following are solved/closed tickets that contain possible solutions to a new problem.\n----------------\n{result}\n----------------\Based on the above context, determine a concise potential solution to the user submitted problem below. If the context is not relevant, answer that you do not know. Output only a few sentences or less, with no preamble.\nQuestion:\n{body}'''
-    
     try:
         airesponse = ollama.generate(model="llama3.2:3b-instruct-q4_K_M", prompt=contextprompt)
         aisolution = airesponse.get('response')
@@ -56,7 +55,6 @@ def add_ai_solution(subject, body, result):
         aisolution = f"Failed to generate AI solution: {str(e)}"
         print(f"Failed to add AI solution for {subject}")
         log(f"Failed to add AI solution for {subject}")
-
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
     c.execute(
@@ -111,28 +109,33 @@ def handle_new_sn_incident(subject, sender, body, snurl):
         "limit":5,
         "prev_next_chunks":20
     }
-    response = requests.post(url, json=data, headers=headers)
-    print(f"Received chunk request. Status: {response.status_code}")
-    log(f"Received chunk request. Status: {response.status_code}")
-    returndata = response.json()
-    # Just initializing the final text
-    finaltext = ""
-    # This iterates through each relevant text chunk pulled in by the PrivateGPT API
-    for idx, item in enumerate(returndata["data"]):
-        # The main chunk with the relevant text
-        text = item.get("text")
-        # The previous and next text chunks
-        previous_texts = item.get("previous_texts", [])
-        next_texts = item.get("next_texts", [])
-        # Just combining them all into one string since they come separately
-        finalchunk = combine_text_blocks(text,previous_texts,next_texts)
-        # After they've been combined, there will be irrelevant sections that need to be cut off the beginning/end
-        theincident = find_most_similar_section(finalchunk, text)
-        # Adding a header / spacing to each section
-        finaltext = finaltext + f"---- {idx+1} ----\n" + theincident + "\n\n\n"
-    # Replacing newlines with HTML line breaks for the web UI
-    finaltext = finaltext.replace("\n","<br>")
-    return finaltext
+    try:
+        response = requests.post(url, json=data, headers=headers)
+        print(f"Received chunk request. Status: {response.status_code}")
+        log(f"Received chunk request. Status: {response.status_code}")
+        returndata = response.json()
+        # Just initializing the final text
+        inaltext = ""
+        # This iterates through each relevant text chunk pulled in by the PrivateGPT API
+        for idx, item in enumerate(returndata["data"]):
+            # The main chunk with the relevant text
+            text = item.get("text")
+            # The previous and next text chunks
+            previous_texts = item.get("previous_texts", [])
+            next_texts = item.get("next_texts", [])
+            # Just combining them all into one string since they come separately
+            finalchunk = combine_text_blocks(text,previous_texts,next_texts)
+            # After they've been combined, there will be irrelevant sections that need to be cut off the beginning/end
+            theincident = find_most_similar_section(finalchunk, text)
+            # Adding a header / spacing to each section
+            finaltext = finaltext + f"---- {idx+1} ----\n" + theincident + "\n\n\n"
+        # Replacing newlines with HTML line breaks for the web UI
+        finaltext = finaltext.replace("\n","<br>")
+        return finaltext
+    except Exception as e:
+        print(f"Failed to get chunks: {str(e)}")
+        log(f"Failed to get chunks: {str(e)}")
+        return (f"Failed to get chunks. {str(e)}")
 
 # Helper functions for the text chunks - combines the main text with the preceding and following text blocks
 def combine_text_blocks(main_text, previous_texts, next_texts):
