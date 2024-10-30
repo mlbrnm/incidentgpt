@@ -266,7 +266,7 @@ def get_hosts_for_event(eventid):
 
 def get_latest_zabbix_event_doc_id():
     # Placeholder for API call, for now assuming a mock response
-    response = requests.get("http://wsvraloan1008:8001/v1/ingest/list")
+    response = requests.get("http://wsmwsllm01:8001/v1/ingest/list")
     data = response.json()  # Parse JSON response
     
     latest_date = None
@@ -293,7 +293,7 @@ def get_latest_zabbix_event_doc_id():
 
 def handle_new_zabbix_incident(body):
     # This is the PrivateGPT server.
-    url = "http://wsvraloan1008:8001/v1/chunks"
+    url = "http://wsmwsllm01:8001/v1/chunks"
     headers = {
         "Content-Type": "application/json"
     }
