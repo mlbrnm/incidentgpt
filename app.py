@@ -115,7 +115,7 @@ def handle_new_sn_incident(subject, sender, body, snurl):
         log(f"Received chunk request. Status: {response.status_code}")
         returndata = response.json()
         # Just initializing the final text
-        inaltext = ""
+        finaltext = ""
         # This iterates through each relevant text chunk pulled in by the PrivateGPT API
         for idx, item in enumerate(returndata["data"]):
             # The main chunk with the relevant text

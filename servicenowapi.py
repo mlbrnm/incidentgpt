@@ -82,7 +82,7 @@ def pull_servicenow_incidents():
     params = {
         "sysparm_limit": 10,
         "sysparm_display_value": True,
-        "sysparm_fields": "sys_id, number, assignment_group, description, opened_at, assigned_to, short_description, u_email,",
+        "sysparm_fields": "sys_id, number, assignment_group, description, opened_at, assigned_to, short_description, u_email, cmdb_ci",
         "assignment_group": "Medical Devices-Medical System Middleware",
         "sysparm_query": "ORDERBYDESCopened_at",
     }
@@ -96,6 +96,8 @@ def pull_servicenow_incidents():
         incidents = response.json()["result"]
         reversed_incidents = incidents[::-1]
         for incident in reversed_incidents:
+            config_item = incident.get("cmdb_ci")
+            config_item = config_item.get("display_value")
             subject = incident.get("number")
             if check_incident(subject) == True:
                 continue
@@ -104,7 +106,7 @@ def pull_servicenow_incidents():
             sys_id = incident.get("sys_id")
             sender = incident.get("u_email")
             timestamp = incident.get("opened_at")
-            body = f"{shortdesc}<br>{desc}"
+            body = f"{config_item}<br>{shortdesc}<br>{desc}"
             snurl = f"{credentials.servicenow_instance}/nav_to.do?uri=incident.do?sys_id={sys_id}"
             url = "http://127.0.0.1:5001/receive-email"
             data = {
