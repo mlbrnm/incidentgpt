@@ -132,14 +132,14 @@ def pull_zabbix_events():
     one_month_ago = now - datetime.timedelta(days=30)
     timestamp_one_month_ago = int(time.mktime(one_month_ago.timetuple()))
     
-    # Base parameters for all queries
+    # Base parameters for all queries - only get Warning and above severities
     base_params = {
         "output": "extend",
         "selectTags": "extend",
         "sortfield": ["eventid"],
         "sortorder": "DESC",
         "limit": 4000,
-        "severities": [2, 3, 4, 5],
+        "severities": [2, 3, 4, 5],  # Warning, Average, High, Disaster only
         "time_from": timestamp_one_month_ago,
     }
     

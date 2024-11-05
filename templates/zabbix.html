@@ -83,21 +83,22 @@ Zabbix - Current Events
 </div>
 
 <div class="card-grid">
-    {% for incident in zabbix_incidents|sort(attribute='severity', reverse=true) %}
-    <div class="incident-card card mb-3 severity-{{ incident.severity }}" 
+    {% for incident in zabbix_incidents %}
+    {% set severity = incident.severity|int %}
+    <div class="incident-card card mb-3 severity-{{ severity }}" 
          onclick="showIncidentDetails('{{ loop.index0 }}')"
-         data-severity="{{ incident.severity }}">
+         data-severity="{{ severity }}">
         <div class="card-body">
             <span class="severity-badge js-severity-badge">
-                {% if incident.severity == 0 %}Not classified
-                {% elif incident.severity == 1 %}Information
-                {% elif incident.severity == 2 %}Warning
-                {% elif incident.severity == 3 %}Average
-                {% elif incident.severity == 4 %}High
+                {% if severity == 0 %}Not classified
+                {% elif severity == 1 %}Information
+                {% elif severity == 2 %}Warning
+                {% elif severity == 3 %}Average
+                {% elif severity == 4 %}High
                 {% else %}Disaster{% endif %}
             </span>
             <span class="hostname">{{ incident.hostname }}</span>
-            <h5 class="card-title mb-2 text-truncate">{{ incident[1] }}</h5>
+            <h5 class="card-title mb-2 text-truncate">{{ incident.subject }}</h5>
             <small class="text-muted">Click to view details</small>
         </div>
     </div>
@@ -105,12 +106,13 @@ Zabbix - Current Events
 </div>
 
 <!-- Modal for incident details -->
-{% for incident in zabbix_incidents|sort(attribute='severity', reverse=true) %}
+{% for incident in zabbix_incidents %}
+{% set severity = incident.severity|int %}
 <div class="modal fade" id="incidentModal{{ loop.index0 }}" tabindex="-1" role="dialog" aria-labelledby="incidentModalLabel{{ loop.index0 }}" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header severity-{{ incident.severity }}">
-                <h5 class="modal-title" id="incidentModalLabel{{ loop.index0 }}">{{ incident[1] }}</h5>
+            <div class="modal-header severity-{{ severity }}">
+                <h5 class="modal-title" id="incidentModalLabel{{ loop.index0 }}">{{ incident.subject }}</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -118,11 +120,11 @@ Zabbix - Current Events
             <div class="modal-body">
                 <div class="alert js-severity-alert">
                     <strong>
-                        {% if incident.severity == 0 %}Not classified
-                        {% elif incident.severity == 1 %}Information
-                        {% elif incident.severity == 2 %}Warning
-                        {% elif incident.severity == 3 %}Average
-                        {% elif incident.severity == 4 %}High
+                        {% if severity == 0 %}Not classified
+                        {% elif severity == 1 %}Information
+                        {% elif severity == 2 %}Warning
+                        {% elif severity == 3 %}Average
+                        {% elif severity == 4 %}High
                         {% else %}Disaster{% endif %}
                         Alert on {{ incident.hostname }}
                     </strong>
@@ -130,11 +132,11 @@ Zabbix - Current Events
 
                 <h6 class="section-title">Alert Details</h6>
                 <p class="text-muted small mb-2">Details of the alert triggered by Zabbix.</p>
-                <div class="rag">{{ incident[2] | safe }}</div>
+                <div class="rag">{{ incident.issuebody | safe }}</div>
 
                 <h6 class="section-title">Relevant Past Incidents</h6>
                 <p class="text-muted small mb-2">The past incidents retrieved from the vector database.</p>
-                <div class="rag">{{ incident[3] | safe }}</div>
+                <div class="rag">{{ incident.relatedbody | safe }}</div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>

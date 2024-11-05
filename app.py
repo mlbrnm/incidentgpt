@@ -22,7 +22,6 @@ def init_db():
                   result TEXT,
                   snurl TEXT,
                   aisolution TEXT)''')
-    c.execute('''DROP TABLE zabbixevents''')
     c.execute('''CREATE TABLE IF NOT EXISTS zabbixevents
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT,
@@ -77,9 +76,14 @@ def get_sn_incidents():
 
 def get_zabbix_events():
     conn = sqlite3.connect('incidents.db')
+    conn.row_factory = sqlite3.Row  # This makes the cursor return dictionaries
     c = conn.cursor()
-    c.execute('SELECT timestamp, subject, issuebody, relatedbody, severity, hostname FROM zabbixevents ORDER BY severity DESC, timestamp DESC')
-    incidents = c.fetchall()
+    c.execute('''
+        SELECT timestamp, subject, issuebody, relatedbody, severity, hostname 
+        FROM zabbixevents 
+        ORDER BY severity DESC, timestamp DESC
+    ''')
+    incidents = [dict(row) for row in c.fetchall()]  # Convert Row objects to dictionaries
     conn.close()
     return incidents
 
