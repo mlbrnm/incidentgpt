@@ -47,7 +47,7 @@ def add_incident(timestamp, subject, sender, body, result, snurl, aisolution="Ge
 def add_ai_solution(subject, body, result):
     contextprompt = f'''You are an AI working for a healthcare IT team called the Middleware Services Team (MWS). The following are solved/closed tickets that contain possible solutions to a new problem.\n----------------\n{result}\n----------------\Based on the above context, determine a concise potential solution to the user submitted problem below. If the context is not relevant, answer that you do not know. Output only a few sentences or less, with no preamble.\nQuestion:\n{body}'''
     try:
-        airesponse = ollama.generate(model="llama3.2:3b-instruct-q4_K_M", prompt=contextprompt)
+        airesponse = ollama.generate(model="llama3.1:8b-instruct-q4_K_M", prompt=contextprompt, keep_alive="120m")
         aisolution = airesponse.get('response')
         print(f"Added AI solution for {subject}")
         log(f"Added AI solution for {subject}")
