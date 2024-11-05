@@ -7,31 +7,201 @@ Zabbix - Current Events
 {% endblock %}
 
 {% block content %}
-<h2>Current Zabbix Events</h2>
-<p class="text-muted">New incidents may take a minute or two to appear and require a page refresh.</p>
-{% for incident in zabbix_incidents %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <strong>{{ incident[0] }}</strong> - <strong>Zabbix Alert:</strong> <a href="{{ incident[4] }}">{{ incident[1] }}</a>
-        </div>
+<style>
+    .incident-card {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border-left: 4px solid;
+    }
+    .incident-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+    .severity-badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        color: white;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+    .hostname {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 8px;
+        display: block;
+    }
+    .modal-body .rag {
+        font-size: 14px;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+    .section-title {
+        color: #000131;
+        font-size: 1.1rem;
+        margin-top: 15px;
+        margin-bottom: 5px;
+    }
+    .severity-filter {
+        margin-bottom: 20px;
+    }
+    .severity-filter button {
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+    .btn-outline-orange {
+        color: #FFA059;
+        border-color: #FFA059;
+    }
+    .btn-outline-orange:hover {
+        color: white;
+        background-color: #FFA059;
+    }
+    .severity-0 { border-left-color: #808080; }
+    .severity-1 { border-left-color: #97AAB3; }
+    .severity-2 { border-left-color: #FFC859; }
+    .severity-3 { border-left-color: #FFA059; }
+    .severity-4 { border-left-color: #E97659; }
+    .severity-5 { border-left-color: #E45959; }
+</style>
+
+<p class="text-muted mb-4">New incidents may take a minute or two to appear and require a page refresh.</p>
+
+<div class="severity-filter">
+    <button class="btn btn-outline-secondary active" onclick="filterBySeverity('all')">All</button>
+    <button class="btn btn-outline-warning" onclick="filterBySeverity('2')">Warning</button>
+    <button class="btn btn-outline-orange" onclick="filterBySeverity('3')">Average</button>
+    <button class="btn btn-outline-danger" onclick="filterBySeverity('4')">High</button>
+    <button class="btn btn-outline-danger" style="border-color: #E45959; color: #E45959;" onclick="filterBySeverity('5')">Disaster</button>
+</div>
+
+<div class="card-grid">
+    {% for incident in zabbix_incidents|sort(attribute='severity', reverse=true) %}
+    <div class="incident-card card mb-3 severity-{{ incident.severity }}" 
+         onclick="showIncidentDetails('{{ loop.index0 }}')"
+         data-severity="{{ incident.severity }}">
         <div class="card-body">
-            <strong style="color: #000131; font-size: 1rem;">Alert Details:</strong><p class="text-muted" style="font-size: 12px;">Details of the alert triggered by Zabbix.</p><p class="rag">{{ incident[2] | safe }}</p>
-            <strong style="color: #000131; font-size: 1rem;">Relevant Past Incidents:</strong><p class="text-muted" style="font-size: 12px;">The past incidents retrieved from the vector database.</p><p class="rag">{{ incident[3] | safe }}</p>
-            
+            <span class="severity-badge js-severity-badge">
+                {% if incident.severity == 0 %}Not classified
+                {% elif incident.severity == 1 %}Information
+                {% elif incident.severity == 2 %}Warning
+                {% elif incident.severity == 3 %}Average
+                {% elif incident.severity == 4 %}High
+                {% else %}Disaster{% endif %}
+            </span>
+            <span class="hostname">{{ incident.hostname }}</span>
+            <h5 class="card-title mb-2 text-truncate">{{ incident[1] }}</h5>
+            <small class="text-muted">Click to view details</small>
         </div>
     </div>
+    {% endfor %}
+</div>
+
+<!-- Modal for incident details -->
+{% for incident in zabbix_incidents|sort(attribute='severity', reverse=true) %}
+<div class="modal fade" id="incidentModal{{ loop.index0 }}" tabindex="-1" role="dialog" aria-labelledby="incidentModalLabel{{ loop.index0 }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header severity-{{ incident.severity }}">
+                <h5 class="modal-title" id="incidentModalLabel{{ loop.index0 }}">{{ incident[1] }}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert js-severity-alert">
+                    <strong>
+                        {% if incident.severity == 0 %}Not classified
+                        {% elif incident.severity == 1 %}Information
+                        {% elif incident.severity == 2 %}Warning
+                        {% elif incident.severity == 3 %}Average
+                        {% elif incident.severity == 4 %}High
+                        {% else %}Disaster{% endif %}
+                        Alert on {{ incident.hostname }}
+                    </strong>
+                </div>
+
+                <h6 class="section-title">Alert Details</h6>
+                <p class="text-muted small mb-2">Details of the alert triggered by Zabbix.</p>
+                <div class="rag">{{ incident[2] | safe }}</div>
+
+                <h6 class="section-title">Relevant Past Incidents</h6>
+                <p class="text-muted small mb-2">The past incidents retrieved from the vector database.</p>
+                <div class="rag">{{ incident[3] | safe }}</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endfor %}
+
 <script>
-    function deleteIncident(incidentId) {
-        fetch(`/delete_incident/${incidentId}`, { method: 'DELETE' })
-        .then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                alert('Failed to delete the incident.');
-            }
-        })
-        .catch(error => console.error('Error:', error));
+    const SEVERITY_COLORS = {
+        0: "#808080",
+        1: "#97AAB3",
+        2: "#FFC859",
+        3: "#FFA059",
+        4: "#E97659",
+        5: "#E45959"
+    };
+
+    // Apply severity colors on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set badge colors
+        document.querySelectorAll('.js-severity-badge').forEach(badge => {
+            const card = badge.closest('.incident-card');
+            const severity = card.dataset.severity;
+            badge.style.backgroundColor = SEVERITY_COLORS[severity];
+        });
+
+        // Set alert colors
+        document.querySelectorAll('.js-severity-alert').forEach(alert => {
+            const modal = alert.closest('.modal');
+            const card = document.querySelector(`.incident-card[data-severity="${modal.id.replace('incidentModal', '')}"]`);
+            const severity = card.dataset.severity;
+            alert.style.backgroundColor = SEVERITY_COLORS[severity];
+            alert.style.color = 'white';
+        });
+    });
+
+    function showIncidentDetails(index) {
+        $(`#incidentModal${index}`).modal('show');
     }
+
+    function filterBySeverity(severity) {
+        // Update active state of filter buttons
+        document.querySelectorAll('.severity-filter button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+
+        // Filter cards
+        document.querySelectorAll('.incident-card').forEach(card => {
+            if (severity === 'all' || card.dataset.severity === severity) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // Prevent modal links from triggering the modal close
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalLinks = document.querySelectorAll('.modal-body a');
+        modalLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+    });
 </script>
 {% endblock %}

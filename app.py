@@ -28,7 +28,9 @@ def init_db():
                 timestamp TEXT,
                 subject TEXT,
                 issuebody TEXT,
-                relatedbody TEXT)''')
+                relatedbody TEXT,
+                severity INTEGER,
+                hostname TEXT)''')
     conn.commit()
     conn.close()
 
@@ -76,7 +78,7 @@ def get_sn_incidents():
 def get_zabbix_events():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('SELECT timestamp, subject, issuebody, relatedbody FROM zabbixevents ORDER BY timestamp DESC')
+    c.execute('SELECT timestamp, subject, issuebody, relatedbody, severity, hostname FROM zabbixevents ORDER BY severity DESC, timestamp DESC')
     incidents = c.fetchall()
     conn.close()
     return incidents
@@ -302,5 +304,3 @@ if __name__ == '__main__':
     # Run Flask app
     log(f"Starting app...")
     app.run(debug=True, host='127.0.0.1', port=5001)
-
-
