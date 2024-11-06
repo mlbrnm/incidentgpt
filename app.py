@@ -118,7 +118,7 @@ def handle_new_sn_incident(subject, sender, body, snurl):
         "prev_next_chunks":20
     }
     try:
-        response = requests.post(url, json=data, headers=headers)
+        response = requests.post(url, json=data, headers=headers, verify=False)
         print(f"Received chunk request. Status: {response.status_code}")
         log(f"Received chunk request. Status: {response.status_code}")
         returndata = response.json()
