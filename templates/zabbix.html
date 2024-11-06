@@ -70,6 +70,16 @@ Zabbix - Current Events
     .severity-3 { border-left-color: #FFA059; }
     .severity-4 { border-left-color: #E97659; }
     .severity-5 { border-left-color: #E45959; }
+    .problem-text {
+        font-size: 0.85rem;
+        color: #333;
+        margin-top: 8px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 </style>
 
 <p class="text-muted mb-4">New incidents may take a minute or two to appear and require a page refresh.</p>
@@ -97,9 +107,9 @@ Zabbix - Current Events
                 {% elif severity == 4 %}High
                 {% else %}Disaster{% endif %}
             </span>
-            <span class="hostname">{{ incident.hostname }}</span>
-            <h5 class="card-title mb-2 text-truncate">{{ incident.subject }}</h5>
-            <small class="text-muted">Click to view details</small>
+            <span class="hostname">{{ incident.subject }}</span>
+            <h5 class="card-title mb-2 text-truncate">{{ incident.hostname }}</h5>
+            <div class="problem-text">{{ incident.justtheproblem | safe }}</div>
         </div>
     </div>
     {% endfor %}
@@ -118,18 +128,6 @@ Zabbix - Current Events
                 </button>
             </div>
             <div class="modal-body">
-                <div class="alert js-severity-alert">
-                    <strong>
-                        {% if severity == 0 %}Not classified
-                        {% elif severity == 1 %}Information
-                        {% elif severity == 2 %}Warning
-                        {% elif severity == 3 %}Average
-                        {% elif severity == 4 %}High
-                        {% else %}Disaster{% endif %}
-                        Alert on {{ incident.hostname }}
-                    </strong>
-                </div>
-
                 <h6 class="section-title">Alert Details</h6>
                 <p class="text-muted small mb-2">Details of the alert triggered by Zabbix.</p>
                 <div class="rag">{{ incident.issuebody | safe }}</div>

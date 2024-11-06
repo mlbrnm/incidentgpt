@@ -22,6 +22,7 @@ def init_db():
                   result TEXT,
                   snurl TEXT,
                   aisolution TEXT)''')
+    c.execute('''DROP TABLE IF EXISTS zabbixevents''')
     c.execute('''CREATE TABLE IF NOT EXISTS zabbixevents
                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT,
@@ -29,7 +30,8 @@ def init_db():
                 issuebody TEXT,
                 relatedbody TEXT,
                 severity INTEGER,
-                hostname TEXT)''')
+                hostname TEXT,
+                justtheproblem TEXT)''')
     conn.commit()
     conn.close()
 
@@ -79,7 +81,7 @@ def get_zabbix_events():
     conn.row_factory = sqlite3.Row  # This makes the cursor return dictionaries
     c = conn.cursor()
     c.execute('''
-        SELECT timestamp, subject, issuebody, relatedbody, severity, hostname 
+        SELECT timestamp, subject, issuebody, relatedbody, severity, hostname, justtheproblem 
         FROM zabbixevents 
         ORDER BY severity DESC, timestamp DESC
     ''')
@@ -105,7 +107,7 @@ executor = ThreadPoolExecutor()
 # The main function for pulling in the relevant text chunks from the PrivateGPT RAG database
 def handle_new_sn_incident(subject, sender, body, snurl):
     # This is the PrivateGPT server.
-    url = "http://wsmwsllm01:8001/v1/chunks"
+    url = "https://wsmwsllm01.healthy.bewell.ca:8001/v1/chunks"
     headers = {
         "Content-Type": "application/json"
     }

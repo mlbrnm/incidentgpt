@@ -39,11 +39,11 @@ def setup_database():
     conn = sqlite3.connect("incidents.db")
     c = conn.cursor()
     
-    # Check if severity and hostname columns exist
+    # Check if severity, hostname, and justtheproblem columns exist
     c.execute("PRAGMA table_info(zabbixevents)")
     columns = [column[1] for column in c.fetchall()]
     
-    if "severity" not in columns or "hostname" not in columns:
+    if "severity" not in columns or "hostname" not in columns or "justtheproblem" not in columns:
         print("Creating or updating table schema...")
         # Create temporary table with new schema
         c.execute("""
@@ -54,15 +54,16 @@ def setup_database():
                 issuebody TEXT,
                 relatedbody TEXT,
                 severity INTEGER,
-                hostname TEXT
+                hostname TEXT,
+                justtheproblem TEXT
             )
         """)
         
         # If old table exists, migrate data
         if "zabbixevents" in [table[0] for table in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]:
             c.execute("""
-                INSERT INTO zabbixevents_new (timestamp, subject, issuebody, relatedbody)
-                SELECT timestamp, subject, issuebody, relatedbody FROM zabbixevents
+                INSERT INTO zabbixevents_new (timestamp, subject, issuebody, relatedbody, severity, hostname)
+                SELECT timestamp, subject, issuebody, relatedbody, severity, hostname FROM zabbixevents
             """)
             c.execute("DROP TABLE zabbixevents")
         
@@ -204,10 +205,13 @@ def pull_zabbix_events():
         
         problembody = ", ".join(tag["value"] for tag in event["tags"]) + "\n"
         problembody += f"Problem: (Severity: {severity})\n"
+        justtheproblem = ""
         if event["name"]:
             problembody += f"{event['name']}\n"
+            justtheproblem += f"{event['name']}\n"
         if event["opdata"]:
             problembody += f"{event['opdata']}\n"
+            justtheproblem += f"{event['opdata']}"
 
         print("Getting related text for event")
         relatedbody = handle_new_zabbix_incident(problembody)
@@ -222,9 +226,9 @@ def pull_zabbix_events():
         try:
             c.execute(
                 """INSERT INTO zabbixevents 
-                   (timestamp, subject, issuebody, relatedbody, severity, hostname)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (timestamp, event["eventid"], problembody, relatedbody, severity_num, host_names),
+                   (timestamp, subject, issuebody, relatedbody, severity, hostname, justtheproblem)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (timestamp, event["eventid"], problembody, relatedbody, severity_num, host_names, justtheproblem),
             )
             conn.commit()
             new_events_count += 1
