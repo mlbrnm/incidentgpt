@@ -1,3 +1,6 @@
+# IncidentGPT
+#### Video Demo:  <URL HERE>
+#### Description:
 This project is designed to help diagnose problems in an IT support environment. It uses semantic search to find past issues similar to the new issue, then uses a language model to provide a summary of the previous solutions that may be applicable to the new issue. Problems often show up repeatedly, and past solutions can provide valuable incites into how to deal with new issues. In an IT support environment, staff are often on call outside of regular hours and a quick set of AI-provided suggestions may help point them towards a resolution quickly even if they're not in the mindset for problem solving.
 
 ServiceNow is a ticketing system used by many organizations. People submit issues or requests to various departments, and ServiceNow tracks the actions taken and final resolution of the issues.
