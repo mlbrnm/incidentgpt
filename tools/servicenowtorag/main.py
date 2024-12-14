@@ -7,9 +7,6 @@ class Record:
     def __init__(self, row_dict):
         """
         Initializes a Record object using a dictionary that contains the data for a single row.
-
-        Args:
-        row_dict (dict): Dictionary where keys are column headers and values are the data of the row.
         """
         self.number = row_dict['number']
         self.opened_at = self.parse_date(row_dict['opened_at'])
@@ -37,12 +34,6 @@ class Record:
         """
         Converts a date string in the format 'YYYY-MM-DD HH:MM:SS' to a datetime object.
         Returns None if the date string is empty or invalid.
-
-        Args:
-        date_str (str): The date string to parse.
-
-        Returns:
-        datetime.datetime or None: The datetime object or None if conversion is not possible.
         """
         try:
             return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
@@ -74,12 +65,6 @@ def load_csv_to_dict(filename='incidents.csv'):
     Load a CSV file and convert it into a list of Record objects.
 
     Each row in the CSV becomes an instance of the Record class, with the header row providing the keys.
-
-    Args:
-    filename (str): The path to the CSV file to load. Defaults to 'incidents.csv'.
-
-    Returns:
-    list[Record]: A list of Record objects representing each row in the CSV.
     """
     encodings = ['utf-8', 'iso-8859-1', 'windows-1252']  # Common encodings to try
     for encoding in encodings:
