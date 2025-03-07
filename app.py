@@ -248,16 +248,6 @@ def index():
     # Render the web UI
     return render_template('index.html', incidents=incidents)
 
-@app.route('/zabbix')
-def zabbix():
-    '''
-    Renders the Zabbix page with a list of incidents from SQLite.
-    '''
-    zabbix_incidents = get_zabbix_events()
-    log("Zabbix UI loaded.")
-    return render_template('zabbix.html', zabbix_incidents=zabbix_incidents)
-
-
 @app.route('/receive-email', methods=['POST'])
 def receive_email():
     """
