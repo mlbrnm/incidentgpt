@@ -75,6 +75,31 @@ def get_id_from_inc(subject):
         print(f"Error: {response.status_code} - {response.text}")
         log(f"Error: {response.status_code} - {response.text}")
 
+def get_work_notes(sys_id):
+    """Gets the work notes for a specific incident."""
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    params = {
+        "sysparm_display_value": True,
+        "sysparm_fields": "work_notes,state",
+        "sysparm_query": f"sys_id={sys_id}",
+    }
+    response = requests.get(
+        credentials.endpoint,
+        auth=HTTPBasicAuth(credentials.user, credentials.password),
+        headers=headers,
+        params=params,
+    )
+    if response.status_code == 200:
+        incident = response.json()["result"][0]
+        return {
+            "work_notes": incident.get("work_notes", ""),
+            "state": incident.get("state", "")
+        }
+    else:
+        print(f"Error getting work notes: {response.status_code} - {response.text}")
+        log(f"Error getting work notes: {response.status_code} - {response.text}")
+        return {"work_notes": "", "state": ""}
+
 
 def pull_servicenow_incidents():
     """Pulls incidents from ServiceNow and sends them to the webUI for processing."""
@@ -82,9 +107,9 @@ def pull_servicenow_incidents():
     params = {
         "sysparm_limit": 10,
         "sysparm_display_value": True,
-        "sysparm_fields": "sys_id, number, assignment_group, description, opened_at, assigned_to, short_description, u_email, cmdb_ci",
+        "sysparm_fields": "sys_id, number, assignment_group, description, opened_at, assigned_to, short_description, u_email, cmdb_ci, state",
         "assignment_group": "Medical Devices-Medical System Middleware",
-        "sysparm_query": "ORDERBYDESCopened_at",
+        "sysparm_query": "state!=6^ORDERBYDESCopened_at",  # state 6 is Resolved
     }
     response = requests.get(
         credentials.endpoint,
@@ -106,6 +131,12 @@ def pull_servicenow_incidents():
             sys_id = incident.get("sys_id")
             sender = incident.get("u_email")
             timestamp = incident.get("opened_at")
+            incident_status = incident.get("state")
+            
+            # Get work notes
+            work_notes_info = get_work_notes(sys_id)
+            work_notes = work_notes_info['work_notes']
+            
             body = f"{config_item}<br>{shortdesc}<br>{desc}"
             snurl = f"{credentials.servicenow_instance}/nav_to.do?uri=incident.do?sys_id={sys_id}"
             url = "http://127.0.0.1:5001/receive-email"
@@ -115,12 +146,14 @@ def pull_servicenow_incidents():
                 "body": f"{body}",
                 "snurl": f"{snurl}",
                 "timestamp": f"{timestamp}",
+                "work_notes": f"{work_notes}",
+                "status": f"{incident_status}"
             }
             headers = {"Content-Type": "application/json"}
             print(f"Sending {subject} to webUI...")
-            log(f"Sending {subject} to webbUI...")
+            log(f"Sending {subject} to webUI...")
             response = requests.post(url, data=json.dumps(data), headers=headers)
-            time.sleep(180)
+            time.sleep(60)  # Reduced sleep time for more frequent updates
     else:
         print(f"Error: {response.status_code} - {response.text}")
         log(f"Error: {response.status_code} - {response.text}")

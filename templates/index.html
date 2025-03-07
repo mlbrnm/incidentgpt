@@ -1,28 +1,82 @@
 {% extends 'base.html' %}
 
-{% block title %}MWS - Relevant Past Incident Search{% endblock %}
+{% block title %}MWS - Active Incidents{% endblock %}
 
 {% block header %}
-Relevant Past Incident Search
+Active Incidents Dashboard
 {% endblock %}
 
 {% block content %}
-<h2>Recent ServiceNow Incidents</h2>
-<p class="text-muted">New incidents may take a minute or two to appear and require a page refresh.</p>
-{% for incident in incidents %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <strong>{{ incident[0] }}</strong> - <strong>Incident:</strong> <a href="{{ incident[4] }}">{{ incident[1] }}</a>
-        </div>
-        <div class="card-body">
-            <strong style="color: #000131; font-size: 1rem;">Issue:</strong><p class="text-muted" style="font-size: 12px;">The user's problem extracted from the incident.</p><p class="rag">{{ incident[2] | safe }}</p>
-            <strong style="color: #000131; font-size: 1rem;">AI Generated Solution:</strong><p class="text-muted" style="font-size: 12px;">The language model's interpretation of the problem, in the context of the past incidents retrieved below.</p><p class="rag">{{ incident[5] | safe }}</p>
-            <strong style="color: #000131; font-size: 1rem;">Relevant Previous Incidents:</strong><p class="text-muted" style="font-size: 12px;">The past incidents retrieved from the vector database.</p><p class="rag">{{ incident[3] | safe }}</p>
-            <button class="btn btn-light float-right" onclick="deleteIncident('{{ incident[1] }}')">Delete (refresh)</button>
-        </div>
+<div class="incidents-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Active ServiceNow Incidents</h2>
+        <button class="btn btn-primary" onclick="updateIncidents()">Refresh Now</button>
     </div>
-{% endfor %}
+    <p class="text-muted">Auto-refreshing every minute. Last update: <span id="last-update"></span></p>
+    
+    <div id="incidents-list">
+        {% for incident in incidents %}
+            <div class="card mb-4 {% if incident[9] == 1 %}border-primary{% endif %}" id="incident-{{ incident[1] }}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ incident[0] }}</strong> - 
+                        <strong>Incident:</strong> <a href="{{ incident[4] }}">{{ incident[1] }}</a>
+                        {% if incident[9] == 1 %}
+                            <span class="badge badge-primary ml-2">Updated</span>
+                        {% endif %}
+                    </div>
+                    <span class="badge {% if incident[8] == 'Resolved' %}badge-success{% else %}badge-warning{% endif %}">
+                        {{ incident[8] }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">Issue:</strong>
+                    <p class="rag">{{ incident[2] | safe }}</p>
+
+                    <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">AI Generated Solution:</strong>
+                    <p class="rag">{{ incident[5] | safe }}</p>
+
+                    <div class="work-notes-section mb-3">
+                        <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">Work Notes:</strong>
+                        <p class="rag">{{ incident[6] | safe }}</p>
+                        <small class="text-muted">Last updated: {{ incident[7] }}</small>
+                    </div>
+
+                    <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">Relevant Previous Incidents:</strong>
+                    <p class="rag">{{ incident[3] | safe }}</p>
+
+                    <button class="btn btn-light float-right" onclick="deleteIncident('{{ incident[1] }}')">Delete</button>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script>
+    const socket = io();
+    let updateTimer;
+
+    function updateLastUpdateTime() {
+        const now = new Date();
+        document.getElementById('last-update').textContent = now.toLocaleTimeString();
+    }
+
+    function updateIncidents() {
+        fetch('/update-incidents', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateLastUpdateTime();
+            if (data.updated.length > 0) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
     function deleteIncident(incidentId) {
         fetch(`/delete_incident/${incidentId}`, { method: 'DELETE' })
         .then(response => {
@@ -34,5 +88,38 @@ Relevant Past Incident Search
         })
         .catch(error => console.error('Error:', error));
     }
+
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+    });
+
+    socket.on('incidents_updated', (data) => {
+        location.reload();
+    });
+
+    // Update incidents every minute
+    setInterval(updateIncidents, 60000);
+    
+    // Set initial last update time
+    updateLastUpdateTime();
 </script>
+
+<style>
+    .incidents-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .badge {
+        font-size: 0.9rem;
+    }
+    .work-notes-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+    }
+    .border-primary {
+        border-width: 2px !important;
+    }
+</style>
 {% endblock %}

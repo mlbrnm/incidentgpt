@@ -6,14 +6,20 @@ import requests
 import difflib
 import ollama
 from concurrent.futures import ThreadPoolExecutor
-from servicenowapi import get_id_from_inc, delete_from_cache
+from servicenowapi import get_id_from_inc, delete_from_cache, get_work_notes
 import datetime
+from flask_socketio import SocketIO
 
 # Initialize SQLite DB
 def init_db():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS incidents
+    # Drop existing tables
+    c.execute('DROP TABLE IF EXISTS incidents')
+    c.execute('DROP TABLE IF EXISTS zabbixevents')
+    
+    # Create new incidents table with updated schema
+    c.execute('''CREATE TABLE incidents
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   timestamp TEXT,
                   subject TEXT,
@@ -21,28 +27,24 @@ def init_db():
                   body TEXT,
                   result TEXT,
                   snurl TEXT,
-                  aisolution TEXT)''')
-    c.execute('''DROP TABLE IF EXISTS zabbixevents''')
-    c.execute('''CREATE TABLE IF NOT EXISTS zabbixevents
-                (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT,
-                subject TEXT,
-                issuebody TEXT,
-                relatedbody TEXT,
-                severity INTEGER,
-                hostname TEXT,
-                justtheproblem TEXT)''')
+                  aisolution TEXT,
+                  work_notes TEXT,
+                  last_updated TEXT,
+                  incident_status TEXT,
+                  has_changes INTEGER DEFAULT 0)''')
     conn.commit()
     conn.close()
 
 
 # Add incident to SQLite DB
-def add_incident(timestamp, subject, sender, body, result, snurl, aisolution="Generation in progress..."):
+def add_incident(timestamp, subject, sender, body, result, snurl, work_notes="", incident_status="", aisolution="Generation in progress..."):
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('''INSERT INTO incidents (timestamp, subject, sender, body, result, snurl, aisolution)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                 (timestamp, subject, sender, body, result, snurl, aisolution))
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    c.execute('''INSERT INTO incidents 
+                 (timestamp, subject, sender, body, result, snurl, aisolution, work_notes, last_updated, incident_status, has_changes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                 (timestamp, subject, sender, body, result, snurl, aisolution, work_notes, current_time, incident_status, 0))
     conn.commit()
     conn.close()
 
@@ -71,21 +73,12 @@ def add_ai_solution(subject, body, result):
 def get_sn_incidents():
     conn = sqlite3.connect('incidents.db')
     c = conn.cursor()
-    c.execute('SELECT timestamp, subject, body, result, snurl, aisolution FROM incidents ORDER BY timestamp DESC')
+    c.execute('''SELECT timestamp, subject, body, result, snurl, aisolution, work_notes, 
+                 last_updated, incident_status, has_changes 
+                 FROM incidents 
+                 WHERE incident_status != 'Resolved' 
+                 ORDER BY timestamp DESC''')
     incidents = c.fetchall()
-    conn.close()
-    return incidents
-
-def get_zabbix_events():
-    conn = sqlite3.connect('incidents.db')
-    conn.row_factory = sqlite3.Row  # This makes the cursor return dictionaries
-    c = conn.cursor()
-    c.execute('''
-        SELECT timestamp, subject, issuebody, relatedbody, severity, hostname, justtheproblem 
-        FROM zabbixevents 
-        ORDER BY severity DESC, timestamp DESC
-    ''')
-    incidents = [dict(row) for row in c.fetchall()]  # Convert Row objects to dictionaries
     conn.close()
     return incidents
 
@@ -98,8 +91,10 @@ def log(message):
         log_file.write(f"[{timestamp}] {message}\n")
 
 
-# Initialize Flask app and async thing
+# Initialize Flask app, SocketIO, and async executor
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app)
 executor = ThreadPoolExecutor()
     
 
@@ -280,11 +275,64 @@ def receive_email():
     combinedbody = data.get("body")
     snurl = data.get("snurl")
     timestamp = data.get("timestamp")
+    work_notes = data.get("work_notes", "")
+    incident_status = data.get("status", "")
+    
     result = ragresultparse(handle_new_sn_incident(subject, sender, combinedbody, snurl))
-    add_incident(timestamp, subject, sender, combinedbody, result, snurl)
+    add_incident(timestamp, subject, sender, combinedbody, result, snurl, work_notes, incident_status)
     executor.submit(add_ai_solution, subject, combinedbody, result)
+    
     # Return a success message
     return jsonify({"message": "Incident received"}), 200
+
+@app.route('/update-incidents', methods=['POST'])
+def update_incidents():
+    """
+    Endpoint to update existing incidents with new work notes and status.
+    """
+    conn = sqlite3.connect('incidents.db')
+    c = conn.cursor()
+    c.execute('SELECT subject, snurl FROM incidents WHERE incident_status != "Resolved"')
+    active_incidents = c.fetchall()
+    
+    updates = []
+    for subject, snurl in active_incidents:
+        sys_id = snurl.split('sys_id=')[-1]
+        incident_info = get_work_notes(sys_id)
+        
+        # Update incident if work notes or status has changed
+        c.execute('''SELECT work_notes, incident_status FROM incidents 
+                    WHERE subject = ?''', (subject,))
+        current = c.fetchone()
+        if current and (current[0] != incident_info['work_notes'] or 
+                       current[1] != incident_info['state']):
+            c.execute('''UPDATE incidents 
+                        SET work_notes = ?, incident_status = ?, has_changes = 1,
+                            last_updated = ? 
+                        WHERE subject = ?''',
+                     (incident_info['work_notes'], incident_info['state'],
+                      datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                      subject))
+            updates.append(subject)
+            
+            # If work notes changed, trigger new AI analysis
+            if current[0] != incident_info['work_notes']:
+                c.execute('''SELECT body, result FROM incidents 
+                            WHERE subject = ?''', (subject,))
+                body, result = c.fetchone()
+                executor.submit(add_ai_solution, subject, body, result)
+    
+    conn.commit()
+    conn.close()
+    
+    if updates:
+        socketio.emit('incidents_updated', {'updated': updates})
+    return jsonify({'updated': updates}), 200
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+    log('Client connected')
 
 
 @app.route('/delete_incident/<incident_id>', methods=['DELETE'])
@@ -307,6 +355,6 @@ def delete_incident(incident_id):
 if __name__ == '__main__':
     # Initialize DB if not exists
     init_db()
-    # Run Flask app
+    # Run Flask app with SocketIO
     log(f"Starting app...")
-    app.run(debug=True, host='127.0.0.1', port=5001)
+    socketio.run(app, debug=True, host='127.0.0.1', port=5001)
