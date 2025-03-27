@@ -9,117 +9,357 @@ Active Incidents Dashboard
 {% block content %}
 <div class="incidents-container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Active ServiceNow Incidents</h2>
-        <button class="btn btn-primary" onclick="updateIncidents()">Refresh Now</button>
+        <div>
+            <h2>ServiceNow Incidents</h2>
+            <div class="btn-group mt-2" role="group">
+                <button type="button" class="btn btn-primary active" onclick="showTab('active')">Active</button>
+                <button type="button" class="btn btn-secondary" onclick="showTab('archived')">Archived</button>
+            </div>
+        </div>
+        <div>
+            <span class="text-muted mr-3">Last update: <span id="last-update"></span></span>
+            <span class="text-muted mr-3">Status: <span id="connection-status" class="badge badge-secondary">Connecting...</span></span>
+        </div>
     </div>
-    <p class="text-muted">Auto-refreshing every minute. Last update: <span id="last-update"></span></p>
     
-    <div id="incidents-list">
-        {% for incident in incidents %}
-            <div class="card mb-4 {% if incident[9] == 1 %}border-primary{% endif %}" id="incident-{{ incident[1] }}">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>{{ incident[0] }}</strong> - 
-                        <strong>Incident:</strong> <a href="{{ incident[4] }}">{{ incident[1] }}</a>
-                        {% if incident[9] == 1 %}
-                            <span class="badge badge-primary ml-2">Updated</span>
-                        {% endif %}
+    <div id="active-incidents" class="incidents-tab">
+        {% for incident in active_incidents %}
+        <!-- DEBUG: {{ incident }} -->
+        <div class="card mb-4" id="incident-{{ incident['number'] }}">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center"
+                     onclick="toggleIncident('{{ incident['number'] }}')"
+                     style="cursor: pointer;">
+                    <div class="mr-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-chevron-right mr-2 toggle-icon"></i>
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <strong class="mr-2">{{ incident['config_item'] }}</strong>
+                                    <a href="{{ incident['snurl'] }}" class="small text-muted" onclick="event.stopPropagation()">{{ incident['number'] }}</a>
+                                    <span class="badge {% if incident['status'] == 'Resolved' %}badge-success{% else %}badge-warning{% endif %} ml-2">
+                                        {{ incident['status'] }}
+                                    </span>
+                                </div>
+                                <div class="text-muted small">{{ incident['short_description'] }}</div>
+                            </div>
+                        </div>
                     </div>
-                    <span class="badge {% if incident[8] == 'Resolved' %}badge-success{% else %}badge-warning{% endif %}">
-                        {{ incident[8] }}
-                    </span>
-                </div>
-                <div class="card-body">
-                    <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">Issue:</strong>
-                    <p class="rag">{{ incident[2] | safe }}</p>
-
-                    <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">AI Generated Solution:</strong>
-                    <p class="rag">{{ incident[5] | safe }}</p>
-
-                    <div class="work-notes-section mb-3">
-                        <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">Work Notes:</strong>
-                        <p class="rag">{{ incident[6] | safe }}</p>
-                        <small class="text-muted">Last updated: {{ incident[7] }}</small>
-                    </div>
-
-                    <strong class="d-block mb-2" style="color: #000131; font-size: 1rem;">Relevant Previous Incidents:</strong>
-                    <p class="rag">{{ incident[3] | safe }}</p>
-
-                    <button class="btn btn-light float-right" onclick="deleteIncident('{{ incident[1] }}')">Delete</button>
+                    {% if incident.get('solution') %}
+                    <span class="badge badge-info">Has Solution</span>
+                    {% endif %}
                 </div>
             </div>
+            <div id="incident-details-{{ incident['number'] }}" class="incident-details" style="display: none;">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <strong class="d-block mb-2">Configuration Item:</strong>
+                        <p>{{ incident['config_item'] }}</p>
+                        
+                        <strong class="d-block mb-2">Issue:</strong>
+                        <p>{{ incident['short_description'] }}<br>{{ incident['description'] }}</p>
+                    </div>
+
+                    <div class="solution-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Current Solution:</strong>
+                        </div>
+                        <p class="mt-2">{{ incident.get('solution', '') | safe }}</p>
+                        <small class="text-muted">Generated: {{ incident.get('generated_at', '') }}</small>
+                        
+                        <button class="btn btn-sm btn-outline-secondary mt-2"
+                                onclick="toggleSolutionHistory('{{ incident['number'] }}')">
+                            Show Solution History
+                        </button>
+                        
+                        <div id="solution-history-{{ incident['number'] }}" class="solution-history mt-3" style="display: none;">
+                            <h6>Solution History</h6>
+                            <div class="solution-timeline">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="work-notes-section">
+                        <strong class="d-block mb-2">Work Notes:</strong>
+                        <div class="work-notes-content">{{ incident['work_notes'] | safe }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div id="archived-incidents" class="incidents-tab" style="display: none;">
+        {% for incident in archived_incidents %}
+        <div class="card mb-4 archived-incident" id="incident-{{ incident['number'] }}">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center"
+                     onclick="toggleIncident('{{ incident['number'] }}')"
+                     style="cursor: pointer;">
+                    <div class="mr-3">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-chevron-right mr-2 toggle-icon"></i>
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <strong class="mr-2">{{ incident['config_item'] }}</strong>
+                                    <a href="{{ incident['snurl'] }}" class="small text-muted" onclick="event.stopPropagation()">{{ incident['number'] }}</a>
+                                    <span class="badge badge-secondary ml-2">Archived</span>
+                                </div>
+                                <div class="text-muted small">
+                                    {{ incident['short_description'] }}
+                                    <span class="ml-2">(Resolved: {{ incident['resolved_at'] }})</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if incident.get('solution') %}
+                    <span class="badge badge-info">Has Solution</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div id="incident-details-{{ incident['number'] }}" class="incident-details" style="display: none;">
+                <div class="card-body">
+                    <div class="mb-4">
+                        <strong class="d-block mb-2">Configuration Item:</strong>
+                        <p>{{ incident['config_item'] }}</p>
+                        
+                        <strong class="d-block mb-2">Issue:</strong>
+                        <p>{{ incident['short_description'] }}<br>{{ incident['description'] }}</p>
+                    </div>
+
+                    <div class="solution-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Final Solution:</strong>
+                        </div>
+                        <p class="mt-2">{{ incident.get('solution', '') | safe }}</p>
+                        <small class="text-muted">Generated: {{ incident.get('generated_at', '') }}</small>
+                        
+                        <button class="btn btn-sm btn-outline-secondary mt-2"
+                                onclick="toggleSolutionHistory('{{ incident['number'] }}')">
+                            Show Solution History
+                        </button>
+                        
+                        <div id="solution-history-{{ incident['number'] }}" class="solution-history mt-3" style="display: none;">
+                            <h6>Solution History</h6>
+                            <div class="solution-timeline">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="work-notes-section">
+                        <strong class="d-block mb-2">Work Notes:</strong>
+                        <div class="work-notes-content">{{ incident['work_notes'] | safe }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
         {% endfor %}
     </div>
 </div>
 
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 <script>
-    const socket = io();
-    let updateTimer;
-
-    function updateLastUpdateTime() {
-        const now = new Date();
-        document.getElementById('last-update').textContent = now.toLocaleTimeString();
-    }
-
-    function updateIncidents() {
-        fetch('/update-incidents', { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            updateLastUpdateTime();
-            if (data.updated.length > 0) {
-                location.reload();
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-
-    function deleteIncident(incidentId) {
-        fetch(`/delete_incident/${incidentId}`, { method: 'DELETE' })
-        .then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                alert('Failed to delete the incident.');
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    }
-
-    socket.on('connect', () => {
-        console.log('Connected to WebSocket');
-    });
-
-    socket.on('incidents_updated', (data) => {
-        location.reload();
-    });
-
-    // Update incidents every minute
-    setInterval(updateIncidents, 60000);
+function toggleIncident(incidentNumber) {
+    const details = $(`#incident-details-${incidentNumber}`);
+    const header = details.prev('.card-header');
+    const icon = header.find('.toggle-icon');
+    const isVisible = details.is(':visible');
     
-    // Set initial last update time
+    // First close all open incidents
+    $('.incident-details').each(function() {
+        const $this = $(this);
+        if ($this.is(':visible')) {
+            $this.slideUp(300);
+            $this.prev('.card-header').find('.toggle-icon').removeClass('rotated');
+        }
+    });
+    
+    // If the clicked incident wasn't already open, expand it
+    if (!isVisible) {
+        details.slideDown(300, function() {
+            icon.addClass('rotated');
+        });
+    }
+}
+
+const socket = io();
+let lastUpdate = new Date();
+
+function updateLastUpdateTime() {
+    lastUpdate = new Date();
+    document.getElementById('last-update').textContent = lastUpdate.toLocaleTimeString();
+}
+
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connection-status');
+    statusElement.textContent = status;
+    statusElement.className = 'badge ' + 
+        (status === 'Connected' ? 'badge-success' : 'badge-secondary');
+}
+
+function showTab(tab) {
+    // Update button states
+    document.querySelector('.btn-group .btn-primary').classList.remove('active');
+    document.querySelector('.btn-group .btn-secondary').classList.remove('active');
+    if (tab === 'active') {
+        document.querySelector('.btn-group .btn-primary').classList.add('active');
+    } else {
+        document.querySelector('.btn-group .btn-secondary').classList.add('active');
+    }
+    
+    // Show/hide incident lists
+    document.getElementById('active-incidents').style.display = tab === 'active' ? 'block' : 'none';
+    document.getElementById('archived-incidents').style.display = tab === 'archived' ? 'block' : 'none';
+}
+
+async function toggleSolutionHistory(incidentNumber) {
+    event.stopPropagation();  // Prevent incident toggle
+    const historyDiv = document.getElementById(`solution-history-${incidentNumber}`);
+    const timelineDiv = historyDiv.querySelector('.solution-timeline');
+    
+    if (historyDiv.style.display === 'none') {
+        historyDiv.style.display = 'block';
+        
+        // Fetch solution history
+        const response = await fetch(`/solution-history/${incidentNumber}`);
+        const solutions = await response.json();
+        
+        // Clear existing content
+        timelineDiv.innerHTML = '';
+        
+        // Add solutions to timeline
+        solutions.forEach(solution => {
+            const solutionCard = document.createElement('div');
+            solutionCard.className = 'solution-card mb-3 p-3 border rounded';
+            solutionCard.innerHTML = 
+                '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                    '<small class="text-muted">' + solution[1] + '</small>' +
+                '</div>' +
+                '<p class="mb-2">' + solution[0] + '</p>' +
+                '<small class="text-muted">Work notes at time:</small>' +
+                '<p class="small text-muted">' + solution[2] + '</p>';
+            timelineDiv.appendChild(solutionCard);
+        });
+    } else {
+        historyDiv.style.display = 'none';
+    }
+}
+
+function updateIncident(incidentNumber) {
+    // Highlight the updated incident
+    const card = document.getElementById(`incident-${incidentNumber}`);
+    if (card) {
+        card.classList.add('border-primary');
+        setTimeout(() => {
+            card.classList.remove('border-primary');
+        }, 5000);
+    }
+}
+
+socket.on('connect', () => {
+    updateConnectionStatus('Connected');
     updateLastUpdateTime();
+});
+
+socket.on('disconnect', () => {
+    updateConnectionStatus('Disconnected');
+});
+
+socket.on('incidents_updated', (data) => {
+    data.updated.forEach(updateIncident);
+    updateLastUpdateTime();
+});
+
+socket.on('solution_updated', (data) => {
+    location.reload();  // Temporary solution - could be improved with partial updates
+});
+
+// Update the "last update" time display
+updateLastUpdateTime();
 </script>
 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <style>
-    .incidents-container {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    .badge {
-        font-size: 0.9rem;
-    }
-    .work-notes-section {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 5px;
-        margin: 15px 0;
-    }
-    .border-primary {
-        border-width: 2px !important;
-    }
+.toggle-icon {
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+.toggle-icon.rotated {
+    transform: rotate(90deg);
+}
+
+.card-header {
+    background-color: #fff;
+    transition: all 0.3s ease;
+}
+
+.card-header:hover {
+    background-color: #f8f9fa;
+}
+
+.incidents-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+.solution-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.work-notes-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.solution-history {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+.solution-card {
+    background-color: #fff;
+    transition: all 0.3s ease;
+}
+
+.solution-card:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.confidence-indicator .badge {
+    color: white;
+    padding: 0.4em 0.6em;
+}
+
+.border-primary {
+    border-width: 2px !important;
+    transition: border-color 0.3s ease;
+}
+
+.archived-incident {
+    opacity: 0.8;
+}
+
+.archived-incident:hover {
+    opacity: 1;
+}
+
+.incident-details {
+    display: none;
+    background-color: #fff;
+    border-top: none;
+    overflow: hidden;
+}
 </style>
 {% endblock %}

@@ -185,3 +185,4 @@ tools/zabbixgpt/zabbix_events_2024-10-21.txt
 tools/zabbixgpt/zabbix_problems_2024-10-20.txt
 tools/zabbixgpt/zabbix_problems_2024-10-21.txt
 tools/zabbixgpt/zabbix_problems_2024-10-22.txt
+*.log.*
