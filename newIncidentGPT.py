@@ -166,6 +166,10 @@ def pull_servicenow_incidents(logging):
                 #logging.info(f"\nRaw incident data: {json.dumps(incident, indent=2)}")
                 
                 incident_number = incident.get("number")
+                if not incident_number:
+                    logging.error("Skipping incident with missing number")
+                    continue
+                    
                 state = incident.get("state", "")
                 status_text = STATE_MAPPING.get(state, "Unknown")
                 
@@ -176,15 +180,20 @@ def pull_servicenow_incidents(logging):
                 logging.info(f"Config Item: {incident.get('cmdb_ci', {}).get('display_value', '')}")
                 logging.info(f"Work Notes Length: {len(incident.get('work_notes', ''))}")
                 
-                incidents.append({
-                    "number": incident_number,
+                # Create incident dictionary with validated number
+                incident_data = {
+                    "number": incident_number,  # Validated number
                     "description": incident.get("description", ""),
                     "short_description": incident.get("short_description", ""),
                     "config_item": incident.get("cmdb_ci", {}).get("display_value", ""),
                     "status": state,  # Store text state value
                     "work_notes": incident.get("work_notes", ""),
                     "snurl": f"{credentials.servicenow_instance}/nav_to.do?uri=incident.do?sys_id={incident.get('sys_id')}"
-                })
+                }
+                
+                # Log the complete incident data for debugging
+                logging.debug(f"Adding incident with data: {json.dumps(incident_data, indent=2)}")
+                incidents.append(incident_data)
             
             total_time = datetime.now() - start_time
             logging.info(f"\nTotal processing time: {total_time.total_seconds():.2f}s")

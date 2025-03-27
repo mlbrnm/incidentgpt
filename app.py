@@ -274,7 +274,13 @@ def store_incidents(incidents):
         c = conn.cursor()
         
         # Get current incident numbers from ServiceNow
-        current_incident_numbers = set(incident['number'] for incident in incidents)
+        current_incident_numbers = set()
+        for incident in incidents:
+            if 'number' not in incident or not incident['number']:
+                logger.error("Found incident without number in input data")
+                continue
+            current_incident_numbers.add(incident['number'])
+            logger.debug(f"Processing incident number: {incident['number']}")
         
         # Get all non-archived incidents from database
         c.execute('SELECT incident_number FROM incidents WHERE archived = 0')
@@ -339,7 +345,19 @@ def get_stored_incidents(archived=False):
     try:
         c = conn.cursor()
         c.execute('''
-            SELECT i.*, s.solution, s.generated_at
+            SELECT 
+                i.incident_number as number,
+                i.description,
+                i.short_description,
+                i.config_item,
+                i.status,
+                i.work_notes,
+                i.last_updated,
+                i.snurl,
+                i.archived,
+                i.resolved_at,
+                s.solution,
+                s.generated_at
             FROM incidents i
             LEFT JOIN (
                 SELECT incident_number, solution, generated_at,
@@ -349,10 +367,27 @@ def get_stored_incidents(archived=False):
             WHERE i.archived = ?
             ORDER BY i.last_updated DESC
         ''', (1 if archived else 0,))
-        columns = [description[0] for description in c.description]
         incidents = []
         for row in c.fetchall():
-            incident = dict(zip(columns, row))
+            # Create a dictionary with explicit column mapping
+            incident = {
+                'number': row[0],  # incident_number aliased as number
+                'description': row[1],
+                'short_description': row[2],
+                'config_item': row[3],
+                'status': row[4],
+                'work_notes': row[5],
+                'last_updated': row[6],
+                'snurl': row[7],
+                'archived': row[8],
+                'resolved_at': row[9],
+                'solution': row[10],
+                'generated_at': row[11]
+            }
+            if not incident['number']:
+                logger.error("Found incident without number in database")
+                continue
+            logger.debug(f"Retrieved incident from DB: {incident['number']}")
             incidents.append(incident)
         return incidents
     except sqlite3.Error as e:
