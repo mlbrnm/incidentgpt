@@ -50,34 +50,51 @@ def get_work_notes(sys_id, logging):
     
     return {"work_notes": "", "state": ""}
 
-def get_rag_context(description):
+def get_rag_context(description, logging):
     """Get relevant context from RAG database"""
     url = "https://wsmwsllm01.healthy.bewell.ca:8001/v1/chunks"
     headers = {"Content-Type": "application/json"}
     data = {
         "text": description,
-        "limit": 5
+        "limit": 5,
+        "prev_next_chunks": 20
     }
     
     try:
+        logging.info(f"Fetching RAG context for description: {description[:100]}...")
         response = requests.post(url, json=data, headers=headers, verify=False)
+        logging.info(f"RAG API response status: {response.status_code}")
+        
         if response.status_code == 200:
             returndata = response.json()
+            logging.info(f"RAG API returned {len(returndata.get('data', []))} chunks")
+            
             finaltext = ""
-            for idx, item in enumerate(returndata["data"]):
+            for idx, item in enumerate(returndata.get("data", [])):
                 text = item.get("text", "")
                 previous_texts = item.get("previous_texts", [])
                 next_texts = item.get("next_texts", [])
                 
                 # Combine text blocks
+                previous_texts = previous_texts or []  # Convert None to empty list
+                next_texts = next_texts or []  # Convert None to empty list
                 combined = "".join(previous_texts[::-1]) + text + "".join(next_texts)
                 relevant = find_most_similar_section(combined, text)
                 finaltext += f"---- {idx+1} ----\n{relevant}\n\n"
             
+            if not finaltext:
+                logging.warning("RAG context processing resulted in empty text")
+                return "No relevant previous incidents found."
+                
+            logging.info(f"Generated RAG context length: {len(finaltext)} characters")
             return finaltext.replace("\n", "<br>")
+        else:
+            logging.error(f"RAG API error: {response.status_code} - {response.text}")
+            return "Error fetching relevant incidents."
+            
     except Exception as e:
-        print(f"RAG Error: {str(e)}")
-    return ""
+        logging.error(f"RAG Error: {str(e)}", exc_info=True)
+        return "Error processing relevant incidents."
 
 def find_most_similar_section(big_string, substring, separator="--------------------------------------------------------------"):
     """Find most relevant section in combined text blocks"""
@@ -180,6 +197,9 @@ def pull_servicenow_incidents(logging):
                 logging.info(f"Config Item: {incident.get('cmdb_ci', {}).get('display_value', '')}")
                 logging.info(f"Work Notes Length: {len(incident.get('work_notes', ''))}")
                 
+                # Turn \n into <br> for HTML display
+                worknotesbr = incident.get("work_notes", "").replace("\n", "<br>")
+
                 # Create incident dictionary with validated number
                 incident_data = {
                     "number": incident_number,  # Validated number
@@ -187,7 +207,7 @@ def pull_servicenow_incidents(logging):
                     "short_description": incident.get("short_description", ""),
                     "config_item": incident.get("cmdb_ci", {}).get("display_value", ""),
                     "status": state,  # Store text state value
-                    "work_notes": incident.get("work_notes", ""),
+                    "work_notes": worknotesbr,
                     "snurl": f"{credentials.servicenow_instance}/nav_to.do?uri=incident.do?sys_id={incident.get('sys_id')}"
                 }
                 

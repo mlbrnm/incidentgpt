@@ -115,7 +115,7 @@ def generate_and_store_solution(incident):
     """Generate and store solution for an incident"""
     try:
         # Get RAG context
-        rag_context = get_rag_context(incident['description'])
+        rag_context = get_rag_context(incident['description'], logger)
         
         # Generate solution
         solution = generate_solution(
@@ -357,10 +357,11 @@ def get_stored_incidents(archived=False):
                 i.archived,
                 i.resolved_at,
                 s.solution,
-                s.generated_at
+                s.generated_at,
+                s.rag_context
             FROM incidents i
             LEFT JOIN (
-                SELECT incident_number, solution, generated_at,
+                SELECT incident_number, solution, generated_at, rag_context,
                        ROW_NUMBER() OVER (PARTITION BY incident_number ORDER BY generated_at DESC) as rn
                 FROM solutions
             ) s ON i.incident_number = s.incident_number AND s.rn = 1
@@ -382,7 +383,8 @@ def get_stored_incidents(archived=False):
                 'archived': row[8],
                 'resolved_at': row[9],
                 'solution': row[10],
-                'generated_at': row[11]
+                'generated_at': row[11],
+                'rag_context': row[12]
             }
             if not incident['number']:
                 logger.error("Found incident without number in database")

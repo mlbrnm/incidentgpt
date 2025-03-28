@@ -24,7 +24,6 @@ Active Incidents Dashboard
     
     <div id="active-incidents" class="incidents-tab">
         {% for incident in active_incidents %}
-        <!-- DEBUG: {{ incident }} -->
         <div class="card mb-4" id="incident-{{ incident['number'] }}">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center"
@@ -80,10 +79,29 @@ Active Incidents Dashboard
                         </div>
                     </div>
 
-                    <div class="work-notes-section">
+                    <div class="work-notes-section mb-4">
                         <strong class="d-block mb-2">Work Notes:</strong>
                         <div class="work-notes-content">{{ incident['work_notes'] | safe }}</div>
                     </div>
+
+                    {% if incident.get('rag_context') %}
+                    <div class="related-incidents-section">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Related Previous Incidents:</strong>
+                        </div>
+                        
+                        <button class="btn btn-sm btn-outline-secondary mt-2"
+                                onclick="toggleRelatedIncidents('{{ incident['number'] }}')">
+                            Show Related Incidents
+                        </button>
+                        
+                        <div id="related-incidents-{{ incident['number'] }}" class="related-incidents mt-3" style="display: none;">
+                            <div class="related-incidents-content">
+                                {{ incident['rag_context'] | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -148,10 +166,29 @@ Active Incidents Dashboard
                         </div>
                     </div>
 
-                    <div class="work-notes-section">
+                    <div class="work-notes-section mb-4">
                         <strong class="d-block mb-2">Work Notes:</strong>
                         <div class="work-notes-content">{{ incident['work_notes'] | safe }}</div>
                     </div>
+
+                    {% if incident.get('rag_context') %}
+                    <div class="related-incidents-section">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Related Previous Incidents:</strong>
+                        </div>
+                        
+                        <button class="btn btn-sm btn-outline-secondary mt-2"
+                                onclick="toggleRelatedIncidents('{{ incident['number'] }}')">
+                            Show Related Incidents
+                        </button>
+                        
+                        <div id="related-incidents-{{ incident['number'] }}" class="related-incidents mt-3" style="display: none;">
+                            <div class="related-incidents-content">
+                                {{ incident['rag_context'] | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -165,7 +202,7 @@ Active Incidents Dashboard
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
 <script>
 function toggleIncident(incidentNumber) {
-    const details = $(`#incident-details-${incidentNumber}`);
+    const details = $('#incident-details-' + incidentNumber);
     const header = details.prev('.card-header');
     const icon = header.find('.toggle-icon');
     const isVisible = details.is(':visible');
@@ -219,14 +256,14 @@ function showTab(tab) {
 
 async function toggleSolutionHistory(incidentNumber) {
     event.stopPropagation();  // Prevent incident toggle
-    const historyDiv = document.getElementById(`solution-history-${incidentNumber}`);
+    const historyDiv = document.getElementById('solution-history-' + incidentNumber);
     const timelineDiv = historyDiv.querySelector('.solution-timeline');
     
     if (historyDiv.style.display === 'none') {
         historyDiv.style.display = 'block';
         
         // Fetch solution history
-        const response = await fetch(`/solution-history/${incidentNumber}`);
+        const response = await fetch('/solution-history/' + incidentNumber);
         const solutions = await response.json();
         
         // Clear existing content
@@ -250,9 +287,20 @@ async function toggleSolutionHistory(incidentNumber) {
     }
 }
 
+function toggleRelatedIncidents(incidentNumber) {
+    event.stopPropagation();  // Prevent incident toggle
+    const relatedDiv = document.getElementById('related-incidents-' + incidentNumber);
+    
+    if (relatedDiv.style.display === 'none') {
+        relatedDiv.style.display = 'block';
+    } else {
+        relatedDiv.style.display = 'none';
+    }
+}
+
 function updateIncident(incidentNumber) {
     // Highlight the updated incident
-    const card = document.getElementById(`incident-${incidentNumber}`);
+    const card = document.getElementById('incident-' + incidentNumber);
     if (card) {
         card.classList.add('border-primary');
         setTimeout(() => {
@@ -360,6 +408,24 @@ updateLastUpdateTime();
     background-color: #fff;
     border-top: none;
     overflow: hidden;
+}
+
+.related-incidents-section {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.related-incidents {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+.related-incidents-content {
+    font-size: 0.9em;
+    line-height: 1.5;
 }
 </style>
 {% endblock %}
