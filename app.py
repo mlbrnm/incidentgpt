@@ -1,21 +1,18 @@
 from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
 import sqlite3
-import requests
-import difflib
-import ollama
 import threading
 import time
 import urllib3
 import logging
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from newIncidentGPT import (
-    get_work_notes, 
+from incidentassist import (
     pull_servicenow_incidents, 
     STATE_MAPPING,
     get_rag_context,
-    generate_solution
+    generate_solution,
+    replace_inc_with_url
 )
 
 # Disable SSL warnings
@@ -24,7 +21,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 def setup_logging():
     """Set up logging configuration for both parent and child processes"""
     from logging.handlers import RotatingFileHandler
-    import os
     
     # Clear any existing handlers
     root_logger = logging.getLogger()
@@ -115,7 +111,7 @@ def generate_and_store_solution(incident):
     """Generate and store solution for an incident"""
     try:
         # Get RAG context
-        rag_context = get_rag_context(incident['description'], logger)
+        rag_context = get_rag_context(incident['description'], incident['config_item'], logger)
         
         # Generate solution
         solution = generate_solution(
@@ -125,6 +121,9 @@ def generate_and_store_solution(incident):
             work_notes=incident['work_notes'],
             rag_context=rag_context
         )
+
+        # Replace INCxxxxxxxx strings in the solution with URLs
+        solution = replace_inc_with_url(solution, logging)
         
         # Store solution
         conn = get_db()
@@ -372,7 +371,7 @@ def get_stored_incidents(archived=False):
         for row in c.fetchall():
             # Create a dictionary with explicit column mapping
             incident = {
-                'number': row[0],  # incident_number aliased as number
+                'number': row[0],  # incident_number as number
                 'description': row[1],
                 'short_description': row[2],
                 'config_item': row[3],

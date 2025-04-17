@@ -168,21 +168,4 @@ cython_debug/
 test.py
 credentials.py
 log.txt
-tools/servicenowtorag/2024-10-30_22-05-32.txt
-tools/servicenowtorag/incident.csv
-tools/servicenowtorag/readme.md
-tools/servicenowtorag/beforeaddingshortdesc/2024-10-02_09-51-25.txt
-tools/servicenowtorag/beforeaddingshortdesc/2024-10-03_09-55-04.txt
-tools/servicenowtorag/old stuff/2024-10-03_09-55-04.7z
-tools/servicenowtorag/old stuff/2024-10-03_09-55-04.txt
-tools/servicenowtorag/old stuff/2024-10-11_13-17-47.txt
-tools/servicenowtorag/old stuff/incident_1year.csv
-tools/servicenowtorag/old stuff/incident_all_oct3rd2024.csv
-tools/servicenowtorag/old stuff/incident.csv
-tools/zabbixgpt/zabbix_events_2024-10-12.txt
-tools/zabbixgpt/zabbix_events_2024-10-20.txt
-tools/zabbixgpt/zabbix_events_2024-10-21.txt
-tools/zabbixgpt/zabbix_problems_2024-10-20.txt
-tools/zabbixgpt/zabbix_problems_2024-10-21.txt
-tools/zabbixgpt/zabbix_problems_2024-10-22.txt
 *.log.*

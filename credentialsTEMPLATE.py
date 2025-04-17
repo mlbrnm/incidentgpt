@@ -1,6 +1,6 @@
-# Rename this file to credentials.py
-
-servicenow_instance = 'https://yourinstance.service-now.com'
-user = 'apiusername' 
-password = 'password/token' 
+servicenow_instance = 'https://yourSNinstance.service-now.com'
+user = 'snapiuser' 
+password = 'snapipassword' 
 endpoint = f'{servicenow_instance}/api/now/table/incident'
+WIKIURL = "https://wiki.js:3443/graphql"
+WIKIAPITOKEN = "wiki.js_token"

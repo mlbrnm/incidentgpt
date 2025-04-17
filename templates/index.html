@@ -74,7 +74,7 @@ Active Incidents Dashboard
                         <div id="solution-history-{{ incident['number'] }}" class="solution-history mt-3" style="display: none;">
                             <h6>Solution History</h6>
                             <div class="solution-timeline">
-                                <!-- Populated by JavaScript -->
+                                <!-- To be populated by JavaScript -->
                             </div>
                         </div>
                     </div>
@@ -161,7 +161,7 @@ Active Incidents Dashboard
                         <div id="solution-history-{{ incident['number'] }}" class="solution-history mt-3" style="display: none;">
                             <h6>Solution History</h6>
                             <div class="solution-timeline">
-                                <!-- Populated by JavaScript -->
+                                <!-- To be populated by JavaScript -->
                             </div>
                         </div>
                     </div>
@@ -207,7 +207,7 @@ function toggleIncident(incidentNumber) {
     const icon = header.find('.toggle-icon');
     const isVisible = details.is(':visible');
     
-    // First close all open incidents
+    // Close all open incidents
     $('.incident-details').each(function() {
         const $this = $(this);
         if ($this.is(':visible')) {
@@ -216,7 +216,7 @@ function toggleIncident(incidentNumber) {
         }
     });
     
-    // If the clicked incident wasn't already open, expand it
+    // Expand incident, if not already open
     if (!isVisible) {
         details.slideDown(300, function() {
             icon.addClass('rotated');
@@ -228,6 +228,7 @@ const socket = io();
 let lastUpdate = new Date();
 
 function updateLastUpdateTime() {
+    // Set last update time to current time
     lastUpdate = new Date();
     document.getElementById('last-update').textContent = lastUpdate.toLocaleTimeString();
 }
