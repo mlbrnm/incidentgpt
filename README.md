@@ -4,7 +4,7 @@ This project is designed to help diagnose problems in an IT support environment.
 
 ServiceNow is a ticketing system used by many organizations. People submit issues or requests to various departments, and ServiceNow tracks the actions taken and final resolution of the issues.
 
-I have two additional tools which automate the process of pulling past incidents from ServiceNow, as well as wiki articles from Wiki.js, into the PrivateGPT RAG database. They can be found here and here.
+I have two additional tools which automate the process of pulling past incidents from ServiceNow, as well as wiki articles from Wiki.js, into the PrivateGPT RAG database. They can be found in the tools folder.
 
 The ServiceNow tool basically takes all the resolved incidents and puts them in a format like this:
 
